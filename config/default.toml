@@ -53,3 +53,21 @@ directory = "data/results"
 
 [join]
 watermark_seconds = 21600  # 6h; events arriving later are counted as dropped
+# Edits arrive slightly out of edit-time order (stream p99 skew ~15s).
+# They are held this long and processed in timestamp order; anything later
+# than this is counted as out-of-order rather than silently reordered.
+reorder_seconds = 120
+# Windows opening this soon after the archive starts may have had edits
+# before capture began, so their leader is unknowable. Excluded, counted.
+warmup_seconds = 21600
+emit_ranks = [2, 3, 5]  # emit a record when the 2nd, 3rd, 5th edition arrives
+# How long a closed window is remembered, to count follow-ups past it.
+late_horizon_seconds = 86400
+# Language pairs with fewer lag samples than this are not ranked.
+min_pair_samples = 20
+
+[baseline]
+sample_size = 200
+sample_seed = 20260913
+# Hand labels are a research artefact, so they live in the repo, not data/.
+labels_path = "labels/pairs.csv"

@@ -66,6 +66,18 @@ class ResultsConfig:
 @dataclass(frozen=True)
 class JoinConfig:
     watermark_seconds: int
+    reorder_seconds: int
+    warmup_seconds: int
+    emit_ranks: list[int]
+    late_horizon_seconds: int
+    min_pair_samples: int
+
+
+@dataclass(frozen=True)
+class BaselineConfig:
+    sample_size: int
+    sample_seed: int
+    labels_path: Path
 
 
 @dataclass(frozen=True)
@@ -77,6 +89,7 @@ class Config:
     wikidata: WikidataConfig
     results: ResultsConfig
     join: JoinConfig
+    baseline: BaselineConfig
     raw: dict = field(default_factory=dict, repr=False)
 
 
@@ -92,6 +105,7 @@ def load_config(path: str | Path | None = None) -> Config:
         raw = tomllib.load(handle)
 
     wikidata = raw["wikidata"]
+    join = raw["join"]
     return Config(
         stream=StreamConfig(
             url=raw["stream"]["url"],
@@ -128,6 +142,18 @@ def load_config(path: str | Path | None = None) -> Config:
             block_events=wikidata["block_events"],
         ),
         results=ResultsConfig(directory=Path(raw["results"]["directory"])),
-        join=JoinConfig(watermark_seconds=raw["join"]["watermark_seconds"]),
+        join=JoinConfig(
+            watermark_seconds=join["watermark_seconds"],
+            reorder_seconds=join["reorder_seconds"],
+            warmup_seconds=join["warmup_seconds"],
+            emit_ranks=sorted(join["emit_ranks"]),
+            late_horizon_seconds=join["late_horizon_seconds"],
+            min_pair_samples=join["min_pair_samples"],
+        ),
+        baseline=BaselineConfig(
+            sample_size=raw["baseline"]["sample_size"],
+            sample_seed=raw["baseline"]["sample_seed"],
+            labels_path=Path(raw["baseline"]["labels_path"]),
+        ),
         raw=raw,
     )
