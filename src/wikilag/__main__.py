@@ -51,6 +51,14 @@ def build_parser() -> argparse.ArgumentParser:
     sample.add_argument("--force", action="store_true", help="replace existing labels")
     pairs_sub.add_parser("evaluate", help="precision and recall from the labels")
 
+    for name, help_text in (
+        ("bench", "throughput and peak RSS at each worker count"),
+        ("profile", "cProfile of a single-worker replay"),
+    ):
+        command = sub.add_parser(name, help=help_text)
+        command.add_argument("--partitions", default=None, help="glob within the archive")
+        command.add_argument("--label", default="current", help="suffix for the result")
+
     return parser
 
 
@@ -80,6 +88,10 @@ def main(argv: list[str] | None = None) -> int:
         commands.run_pairs_sample(config, args.partitions, args.force, run_id)
     elif args.command == "pairs" and args.pairs_command == "evaluate":
         commands.run_pairs_evaluate(config, run_id)
+    elif args.command == "bench":
+        commands.run_bench(config, args.partitions, args.label, run_id)
+    elif args.command == "profile":
+        commands.run_profile(config, args.partitions, args.label, run_id)
 
     return 0
 

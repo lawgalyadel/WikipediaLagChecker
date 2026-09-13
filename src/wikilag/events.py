@@ -92,7 +92,13 @@ def edits(
     reported. `counts` is filled in as a side effect when given.
     """
     counts = counts if counts is not None else EventCounts()
-    recent = RecentIds(config.events.dedupe_window_events)
+    return deduplicated(filtered(events, config, counts), config, counts)
+
+
+def filtered(
+    events: Iterable[dict], config: Config, counts: EventCounts
+) -> Iterator[Edit]:
+    """The stateless half of `edits`: safe to run per partition in parallel."""
     wikis = set(config.filters.wikis)
     namespaces = set(config.filters.namespaces)
     change_types = set(config.events.change_types)
@@ -112,6 +118,16 @@ def edits(
         if edit.change_type not in change_types:
             counts.drop(f"type:{edit.change_type}")
             continue
+        yield edit
+
+
+def deduplicated(
+    candidates: Iterable[Edit], config: Config, counts: EventCounts
+) -> Iterator[Edit]:
+    """The stateful half of `edits`. Duplicates straddle partition
+    boundaries, so this runs once, in order, after any parallel stage."""
+    recent = RecentIds(config.events.dedupe_window_events)
+    for edit in candidates:
         if recent.seen_before(edit.event_id):
             counts.duplicate += 1
             continue

@@ -39,6 +39,7 @@ def make_config(**overrides) -> WikidataConfig:
         "batch_size": 50,
         "cache_size": 100,
         "store_path": ":memory:",
+        "store_query_chunk": 2,
         "request_timeout_seconds": 1.0,
         "maxlag_seconds": 5,
         "max_retries": 3,
@@ -138,6 +139,19 @@ def test_pages_without_an_item_are_cached_negatively():
     assert len(client.calls) == 1
     assert resolver.stats.negative_cache_hits == 1
     assert resolver.stats.cache_hit_rate == 0.5
+
+
+def test_batched_store_lookup_matches_per_key_lookup_across_chunks():
+    store = ResolutionStore(":memory:")
+    store.put_many({("enwiki", f"T{i}"): (f"Q{i}" if i % 3 else None) for i in range(7)})
+    keys = [("enwiki", f"T{i}") for i in range(9)] + [("dewiki", "T1")]
+
+    batched = store.get_many(keys, chunk_size=2)
+
+    assert batched == {k: store.get(k)[1] for k in keys if store.get(k)[0]}
+    assert batched[("enwiki", "T0")] is None  # stored negative is found
+    assert ("enwiki", "T8") not in batched  # absent stays absent
+    assert ("dewiki", "T1") not in batched  # wiki is part of the key
 
 
 def test_negative_results_survive_in_the_store():

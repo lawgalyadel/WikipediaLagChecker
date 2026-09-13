@@ -31,16 +31,26 @@ def resolved_edits(
     paths: Iterable[Path], config: Config, resolver: Resolver, counts: EventCounts
 ) -> Iterator[tuple[Edit, str | None]]:
     """Edits paired with their Wikidata item, resolved a block at a time."""
+    return resolve_in_blocks(
+        edits(replay_partitions(paths), config, counts), config, resolver
+    )
+
+
+def resolve_in_blocks(
+    stream: Iterable[Edit], config: Config, resolver: Resolver
+) -> Iterator[tuple[Edit, str | None]]:
     block: list[Edit] = []
-    for edit in edits(replay_partitions(paths), config, counts):
+    for edit in stream:
         block.append(edit)
         if len(block) >= config.wikidata.block_events:
-            yield from zip(
-                block, resolver.resolve_block([e.key for e in block]), strict=True
-            )
+            yield from _resolve(block, resolver)
             block = []
     if block:
-        yield from zip(block, resolver.resolve_block([e.key for e in block]), strict=True)
+        yield from _resolve(block, resolver)
+
+
+def _resolve(block: list[Edit], resolver: Resolver) -> Iterator[tuple[Edit, str | None]]:
+    return zip(block, resolver.resolve_block([e.key for e in block]), strict=True)
 
 
 def counts_summary(counts: EventCounts) -> dict:

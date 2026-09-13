@@ -18,6 +18,7 @@ from pathlib import Path
 import structlog
 
 from wikilag.analysis import LagAggregator
+from wikilag.bench import benchmark, profile
 from wikilag.config import Config
 from wikilag.events import EventCounts
 from wikilag.pairs import (
@@ -213,6 +214,32 @@ def run_pairs_evaluate(config: Config, run_id: str) -> None:
     }
     path = write_result(config, "baseline", summary)
     log.info("pairs.evaluated", result=str(path), labelled=result["labelled"])
+
+
+def run_bench(config: Config, pattern: str | None, label: str, run_id: str) -> None:
+    paths = select_partitions(config, pattern)
+    log.info("bench.start", partitions=len(paths), workers=config.bench.workers)
+    result = benchmark(config, paths)
+    path = write_result(config, f"bench_{label}", {"run_id": run_id, **result})
+    for row in result["rows"]:
+        log.info("bench.row", **{k: v for k, v in row.items() if k != "digests"})
+    log.info(
+        "bench.done",
+        result=str(path),
+        deterministic_across_workers=result["deterministic_across_workers"],
+    )
+
+
+def run_profile(config: Config, pattern: str | None, label: str, run_id: str) -> None:
+    paths = select_partitions(config, pattern)
+    result, report = profile(config, paths)
+    path = write_result(config, f"profile_{label}", {"run_id": run_id, **result})
+    (config.results.directory / f"profile_{label}.txt").write_text(
+        report, encoding="utf-8"
+    )
+    for row in result["top"][:8]:
+        log.info("profile.top", **row)
+    log.info("profile.done", result=str(path), elapsed_seconds=result["elapsed_seconds"])
 
 
 def _read_result(config: Config, name: str) -> dict:

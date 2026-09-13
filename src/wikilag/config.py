@@ -50,6 +50,7 @@ class WikidataConfig:
     batch_size: int
     cache_size: int
     store_path: Path
+    store_query_chunk: int
     request_timeout_seconds: float
     maxlag_seconds: int
     max_retries: int
@@ -74,6 +75,14 @@ class JoinConfig:
 
 
 @dataclass(frozen=True)
+class BenchConfig:
+    workers: list[int]
+    repeats: int
+    rss_sample_interval_seconds: float
+    profile_top_functions: int
+
+
+@dataclass(frozen=True)
 class BaselineConfig:
     sample_size: int
     sample_seed: int
@@ -90,6 +99,7 @@ class Config:
     results: ResultsConfig
     join: JoinConfig
     baseline: BaselineConfig
+    bench: BenchConfig
     raw: dict = field(default_factory=dict, repr=False)
 
 
@@ -134,6 +144,7 @@ def load_config(path: str | Path | None = None) -> Config:
             batch_size=wikidata["batch_size"],
             cache_size=wikidata["cache_size"],
             store_path=Path(wikidata["store_path"]),
+            store_query_chunk=wikidata["store_query_chunk"],
             request_timeout_seconds=wikidata["request_timeout_seconds"],
             maxlag_seconds=wikidata["maxlag_seconds"],
             max_retries=wikidata["max_retries"],
@@ -154,6 +165,12 @@ def load_config(path: str | Path | None = None) -> Config:
             sample_size=raw["baseline"]["sample_size"],
             sample_seed=raw["baseline"]["sample_seed"],
             labels_path=Path(raw["baseline"]["labels_path"]),
+        ),
+        bench=BenchConfig(
+            workers=list(raw["bench"]["workers"]),
+            repeats=raw["bench"]["repeats"],
+            rss_sample_interval_seconds=raw["bench"]["rss_sample_interval_seconds"],
+            profile_top_functions=raw["bench"]["profile_top_functions"],
         ),
         raw=raw,
     )
