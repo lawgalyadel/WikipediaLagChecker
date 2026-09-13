@@ -26,5 +26,30 @@ wikis = [
 namespaces = [0]      # main article namespace only
 include_bots = false  # bots are archived, then excluded at analysis time
 
+[events]
+# `log` events (moves, deletions, protections) are not article edits.
+change_types = ["edit", "new"]
+# Restarts re-archive up to one flush interval and resumes replay a little
+# history, so ids are deduplicated over a bounded window of recent events.
+dedupe_window_events = 20000
+
+[wikidata]
+api_url = "https://www.wikidata.org/w/api.php"
+user_agent = "wikilag/0.1 (https://github.com/lawgalyadel/WikipediaLagChecker)"
+batch_size = 50              # API maximum titles per wbgetentities request
+cache_size = 50000           # in-memory LRU entries, positive and negative
+store_path = "data/wikidata.sqlite"  # frozen resolutions; replay reads these
+request_timeout_seconds = 30.0
+maxlag_seconds = 5           # ask Wikimedia to refuse us when replicas lag
+max_retries = 6
+backoff_initial_seconds = 1.0
+backoff_max_seconds = 60.0
+# Events are resolved in blocks so lookups can be batched across events.
+block_events = 5000
+
+[results]
+# Every measured number lands here as JSON; the README is generated from it.
+directory = "data/results"
+
 [join]
 watermark_seconds = 21600  # 6h; events arriving later are counted as dropped

@@ -38,6 +38,32 @@ class FilterConfig:
 
 
 @dataclass(frozen=True)
+class EventsConfig:
+    change_types: list[str]
+    dedupe_window_events: int
+
+
+@dataclass(frozen=True)
+class WikidataConfig:
+    api_url: str
+    user_agent: str
+    batch_size: int
+    cache_size: int
+    store_path: Path
+    request_timeout_seconds: float
+    maxlag_seconds: int
+    max_retries: int
+    backoff_initial_seconds: float
+    backoff_max_seconds: float
+    block_events: int
+
+
+@dataclass(frozen=True)
+class ResultsConfig:
+    directory: Path
+
+
+@dataclass(frozen=True)
 class JoinConfig:
     watermark_seconds: int
 
@@ -47,6 +73,9 @@ class Config:
     stream: StreamConfig
     archive: ArchiveConfig
     filters: FilterConfig
+    events: EventsConfig
+    wikidata: WikidataConfig
+    results: ResultsConfig
     join: JoinConfig
     raw: dict = field(default_factory=dict, repr=False)
 
@@ -62,6 +91,7 @@ def load_config(path: str | Path | None = None) -> Config:
     with resolved.open("rb") as handle:
         raw = tomllib.load(handle)
 
+    wikidata = raw["wikidata"]
     return Config(
         stream=StreamConfig(
             url=raw["stream"]["url"],
@@ -80,6 +110,24 @@ def load_config(path: str | Path | None = None) -> Config:
             namespaces=list(raw["filters"]["namespaces"]),
             include_bots=raw["filters"]["include_bots"],
         ),
+        events=EventsConfig(
+            change_types=list(raw["events"]["change_types"]),
+            dedupe_window_events=raw["events"]["dedupe_window_events"],
+        ),
+        wikidata=WikidataConfig(
+            api_url=wikidata["api_url"],
+            user_agent=wikidata["user_agent"],
+            batch_size=wikidata["batch_size"],
+            cache_size=wikidata["cache_size"],
+            store_path=Path(wikidata["store_path"]),
+            request_timeout_seconds=wikidata["request_timeout_seconds"],
+            maxlag_seconds=wikidata["maxlag_seconds"],
+            max_retries=wikidata["max_retries"],
+            backoff_initial_seconds=wikidata["backoff_initial_seconds"],
+            backoff_max_seconds=wikidata["backoff_max_seconds"],
+            block_events=wikidata["block_events"],
+        ),
+        results=ResultsConfig(directory=Path(raw["results"]["directory"])),
         join=JoinConfig(watermark_seconds=raw["join"]["watermark_seconds"]),
         raw=raw,
     )

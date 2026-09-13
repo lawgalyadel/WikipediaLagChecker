@@ -11,7 +11,7 @@ from __future__ import annotations
 import io
 import json
 import zlib
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -117,7 +117,12 @@ def replay(directory: Path) -> Iterator[dict]:
     line is the normal result of killing the archiver mid-write, and one
     bad line should not make a five-day archive unreadable.
     """
-    for partition in partitions(directory):
+    yield from replay_partitions(partitions(directory))
+
+
+def replay_partitions(paths: Iterable[Path]) -> Iterator[dict]:
+    """`replay` over an explicit, already-ordered list of partitions."""
+    for partition in paths:
         for line in read_lines(partition):
             try:
                 yield json.loads(line)
