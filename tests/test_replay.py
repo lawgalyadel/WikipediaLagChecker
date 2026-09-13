@@ -1,0 +1,56 @@
+import gzip
+import json
+
+from wikilag.replay import describe, replay
+
+
+def _write(directory, name, rows):
+    directory.mkdir(parents=True, exist_ok=True)
+    with gzip.open(directory / name, "wt", encoding="utf-8") as handle:
+        for row in rows:
+            handle.write(row + "\n")
+
+
+def test_replay_is_deterministic_across_runs(tmp_path):
+    _write(tmp_path, "2026-09-13-15.jsonl.gz", [json.dumps({"i": 3})])
+    _write(tmp_path, "2026-09-13-14.jsonl.gz", [json.dumps({"i": i}) for i in (1, 2)])
+
+    first = [event["i"] for event in replay(tmp_path)]
+    second = [event["i"] for event in replay(tmp_path)]
+
+    assert first == [1, 2, 3]  # partition order, then line order
+    assert first == second
+
+
+def test_describe_counts_undecodable_lines(tmp_path):
+    _write(tmp_path, "2026-09-13-14.jsonl.gz", [json.dumps({"i": 1}), "{truncated"])
+    stats = describe(tmp_path)
+    assert (stats.events, stats.undecodable) == (1, 1)
+    assert stats.undecodable_rate == 0.5
+
+
+def test_replay_reads_multiple_appended_members(tmp_path):
+    # The archiver reopens partitions in append mode, one gzip member each.
+    _write(tmp_path, "p.jsonl.gz", [json.dumps({"i": 1})])
+    with gzip.open(tmp_path / "p.jsonl.gz", "at", encoding="utf-8") as handle:
+        handle.write(json.dumps({"i": 2}) + "\n")
+    assert [event["i"] for event in replay(tmp_path)] == [1, 2]
+
+
+def test_replay_survives_a_hard_killed_partition(tmp_path):
+    # Flushed but never closed: no end-of-stream marker, as after a kill.
+    path = tmp_path / "p.jsonl.gz"
+    writer = gzip.open(path, "wt", encoding="utf-8")
+    writer.write(json.dumps({"i": 1}) + "\n" + json.dumps({"i": 2}) + "\n")
+    writer.flush()
+    killed = path.read_bytes()
+    writer.close()
+    path.write_bytes(killed)
+
+    assert [event["i"] for event in replay(tmp_path)] == [1, 2]
+    assert describe(tmp_path).events == 2
+
+
+def test_truncated_line_does_not_break_replay(tmp_path):
+    _write(tmp_path, "2026-09-13-14.jsonl.gz", [json.dumps({"i": 1}), "{truncated"])
+    assert [event["i"] for event in replay(tmp_path)] == [1]

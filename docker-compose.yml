@@ -1,0 +1,9 @@
+services:
+  archiver:
+    build: .
+    environment:
+      WIKILAG_CONFIG: /app/config/default.toml
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config:ro
+    restart: unless-stopped

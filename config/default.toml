@@ -1,0 +1,30 @@
+# Every tunable in the project. Nothing here is duplicated in code.
+
+[stream]
+url = "https://stream.wikimedia.org/v2/stream/recentchange"
+reconnect_initial_seconds = 1.0
+reconnect_max_seconds = 60.0
+read_timeout_seconds = 60.0
+
+[archive]
+directory = "data/raw"
+partition_format = "%Y-%m-%d-%H"
+offset_file = "data/offset.txt"
+# The offset only advances after a flush, so at most this many events are
+# re-archived after a hard kill. Lower is safer, higher compresses better.
+flush_every_events = 100
+
+[filters]
+# Deliberately a mixed set rather than all-European, so the interesting
+# asymmetries (does an event reach English before or after the language
+# local to where it happened) are visible in the results.
+wikis = [
+  "enwiki", "dewiki", "frwiki", "eswiki", "ptwiki", "itwiki",
+  "nlwiki", "plwiki", "ruwiki", "svwiki", "trwiki", "arwiki",
+  "fawiki", "hiwiki", "idwiki", "jawiki", "kowiki", "zhwiki",
+]
+namespaces = [0]      # main article namespace only
+include_bots = false  # bots are archived, then excluded at analysis time
+
+[join]
+watermark_seconds = 21600  # 6h; events arriving later are counted as dropped
