@@ -1,0 +1,34 @@
+{
+  "allocation": {
+    "both": 94,
+    "naive_only": 12,
+    "wikidata_only": 94
+  },
+  "generated_at": "2026-09-13T19:18:34.326483+00:00",
+  "key_file": "labels\\pairs.key.csv",
+  "labels_file": "labels\\pairs.csv",
+  "naive_pairs": 678,
+  "pages": 28553,
+  "pages_with_item": 27198,
+  "partitions": [
+    "2026-09-13-14.jsonl.gz",
+    "2026-09-13-15.jsonl.gz",
+    "2026-09-13-16.jsonl.gz",
+    "2026-09-13-17.jsonl.gz",
+    "2026-09-13-18.jsonl.gz"
+  ],
+  "run_id": "24aae2c8cca0",
+  "seed": 20260913,
+  "stratum_sizes": {
+    "both": 666,
+    "naive_only": 12,
+    "wikidata_only": 1220
+  },
+  "unresolved_keys": 0,
+  "wikidata_pairs": 1886,
+  "window": {
+    "first_partition": "2026-09-13-14.jsonl.gz",
+    "last_partition": "2026-09-13-18.jsonl.gz",
+    "partitions": 5
+  }
+}

@@ -19,7 +19,6 @@ from wikilag import commands
 from wikilag.archiver import run_archiver
 from wikilag.config import load_config
 from wikilag.logging_setup import configure
-from wikilag.replay import describe
 
 log = structlog.get_logger(__name__)
 
@@ -33,7 +32,8 @@ def build_parser() -> argparse.ArgumentParser:
     archive = sub.add_parser("archive", help="stream and archive raw events")
     archive.add_argument("--max-events", type=int, default=None)
 
-    sub.add_parser("stats", help="describe what is in the archive")
+    stats = sub.add_parser("stats", help="describe what is in the archive")
+    stats.add_argument("--partitions", default=None, help="glob within the archive")
 
     resolve = sub.add_parser("resolve", help="map archived edits to Wikidata items")
     resolve.add_argument("--partitions", default=None, help="glob within the archive")
@@ -66,6 +66,8 @@ def build_parser() -> argparse.ArgumentParser:
         command.add_argument("--partitions", default=None, help="glob within the archive")
         command.add_argument("--label", default="current", help="suffix for the result")
 
+    sub.add_parser("report", help="render the README results from results/")
+
     return parser
 
 
@@ -79,14 +81,7 @@ def main(argv: list[str] | None = None) -> int:
         archived = run_archiver(config, max_events=args.max_events)
         log.info("archive.stop", archived=archived)
     elif args.command == "stats":
-        stats = describe(config.archive.directory)
-        log.info(
-            "archive.stats",
-            partitions=stats.partitions,
-            events=stats.events,
-            undecodable=stats.undecodable,
-            undecodable_rate=round(stats.undecodable_rate, 6),
-        )
+        commands.run_stats(config, args.partitions, run_id)
     elif args.command == "resolve":
         commands.run_resolve(config, args.partitions, args.offline, run_id)
     elif args.command == "join":
@@ -103,6 +98,8 @@ def main(argv: list[str] | None = None) -> int:
         commands.run_bench(config, args.partitions, args.label, run_id)
     elif args.command == "profile":
         commands.run_profile(config, args.partitions, args.label, run_id)
+    elif args.command == "report":
+        commands.run_report(config, run_id)
 
     return 0
 

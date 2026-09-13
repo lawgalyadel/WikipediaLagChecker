@@ -1,0 +1,182 @@
+{
+  "elapsed_seconds": 11.05,
+  "generated_at": "2026-09-13T19:05:31.845162+00:00",
+  "run_id": "ca7fb1e27b57",
+  "top": [
+    {
+      "calls": 39702,
+      "cumulative_seconds": 4.822,
+      "function": "~:0(<method 'execute' of 'sqlite3.Connection' objects>)",
+      "own_seconds": 4.822,
+      "own_share": 0.4441
+    },
+    {
+      "calls": 60072,
+      "cumulative_seconds": 1.18,
+      "function": "decoder.py:351(raw_decode)",
+      "own_seconds": 1.18,
+      "own_share": 0.1087
+    },
+    {
+      "calls": 39701,
+      "cumulative_seconds": 0.316,
+      "function": "~:0(<method 'fetchone' of 'sqlite3.Cursor' objects>)",
+      "own_seconds": 0.316,
+      "own_share": 0.0291
+    },
+    {
+      "calls": 60072,
+      "cumulative_seconds": 0.572,
+      "function": "events.py:68(to_edit)",
+      "own_seconds": 0.296,
+      "own_share": 0.0272
+    },
+    {
+      "calls": 55036,
+      "cumulative_seconds": 3.706,
+      "function": "events.py:98(filtered)",
+      "own_seconds": 0.266,
+      "own_share": 0.0245
+    },
+    {
+      "calls": 21687,
+      "cumulative_seconds": 0.249,
+      "function": "~:0(<method 'decompress' of 'zlib.Decompress' objects>)",
+      "own_seconds": 0.249,
+      "own_share": 0.023
+    },
+    {
+      "calls": 54965,
+      "cumulative_seconds": 1.204,
+      "function": "propagation.py:127(push)",
+      "own_seconds": 0.238,
+      "own_share": 0.0219
+    },
+    {
+      "calls": 51570,
+      "cumulative_seconds": 0.823,
+      "function": "propagation.py:158(_process)",
+      "own_seconds": 0.217,
+      "own_share": 0.02
+    },
+    {
+      "calls": 60072,
+      "cumulative_seconds": 1.552,
+      "function": "decoder.py:340(decode)",
+      "own_seconds": 0.197,
+      "own_share": 0.0181
+    },
+    {
+      "calls": 463511,
+      "cumulative_seconds": 0.193,
+      "function": "~:0(<method 'get' of 'dict' objects>)",
+      "own_seconds": 0.193,
+      "own_share": 0.0177
+    },
+    {
+      "calls": 213,
+      "cumulative_seconds": 0.184,
+      "function": "~:0(<method 'split' of 'bytes' objects>)",
+      "own_seconds": 0.184,
+      "own_share": 0.0169
+    },
+    {
+      "calls": 36068,
+      "cumulative_seconds": 0.306,
+      "function": "propagation.py:212(_open_window)",
+      "own_seconds": 0.153,
+      "own_share": 0.0141
+    },
+    {
+      "calls": 60072,
+      "cumulative_seconds": 0.149,
+      "function": "~:0(<method 'decode' of 'bytes' objects>)",
+      "own_seconds": 0.149,
+      "own_share": 0.0137
+    },
+    {
+      "calls": 60081,
+      "cumulative_seconds": 0.984,
+      "function": "replay.py:69(_read_member)",
+      "own_seconds": 0.14,
+      "own_share": 0.0129
+    },
+    {
+      "calls": 60183,
+      "cumulative_seconds": 0.477,
+      "function": "replay.py:107(_complete_lines)",
+      "own_seconds": 0.125,
+      "own_share": 0.0116
+    },
+    {
+      "calls": 51570,
+      "cumulative_seconds": 0.205,
+      "function": "propagation.py:222(_expire)",
+      "own_seconds": 0.123,
+      "own_share": 0.0113
+    },
+    {
+      "calls": 36068,
+      "cumulative_seconds": 0.12,
+      "function": "<string>:2(__init__)",
+      "own_seconds": 0.12,
+      "own_share": 0.0111
+    },
+    {
+      "calls": 120144,
+      "cumulative_seconds": 0.112,
+      "function": "~:0(<method 'match' of 're.Pattern' objects>)",
+      "own_seconds": 0.112,
+      "own_share": 0.0104
+    },
+    {
+      "calls": 60072,
+      "cumulative_seconds": 1.703,
+      "function": "__init__.py:304(loads)",
+      "own_seconds": 0.111,
+      "own_share": 0.0102
+    },
+    {
+      "calls": 11,
+      "cumulative_seconds": 5.524,
+      "function": "resolver.py:296(_resolve_misses)",
+      "own_seconds": 0.11,
+      "own_share": 0.0101
+    },
+    {
+      "calls": 324158,
+      "cumulative_seconds": 0.109,
+      "function": "~:0(<built-in method builtins.len>)",
+      "own_seconds": 0.109,
+      "own_share": 0.0101
+    },
+    {
+      "calls": 39701,
+      "cumulative_seconds": 5.243,
+      "function": "resolver.py:172(get)",
+      "own_seconds": 0.106,
+      "own_share": 0.0097
+    },
+    {
+      "calls": 60077,
+      "cumulative_seconds": 2.838,
+      "function": "replay.py:123(replay_partitions)",
+      "own_seconds": 0.1,
+      "own_share": 0.0093
+    },
+    {
+      "calls": 39284,
+      "cumulative_seconds": 0.13,
+      "function": "resolver.py:148(put)",
+      "own_seconds": 0.092,
+      "own_share": 0.0085
+    },
+    {
+      "calls": 54966,
+      "cumulative_seconds": 9.782,
+      "function": "pipeline.py:39(resolve_in_blocks)",
+      "own_seconds": 0.09,
+      "own_share": 0.0083
+    }
+  ]
+}

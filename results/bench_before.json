@@ -1,0 +1,95 @@
+{
+  "cpu_count": 12,
+  "deterministic_across_workers": true,
+  "generated_at": "2026-09-13T19:07:21.759207+00:00",
+  "partitions": [
+    "2026-09-13-14.jsonl.gz",
+    "2026-09-13-15.jsonl.gz",
+    "2026-09-13-16.jsonl.gz",
+    "2026-09-13-17.jsonl.gz",
+    "2026-09-13-18.jsonl.gz"
+  ],
+  "physical_cores": 10,
+  "repeats": 3,
+  "rows": [
+    {
+      "digests": [],
+      "efficiency": 1.0,
+      "events": 60072,
+      "events_per_second": 24922,
+      "median_seconds": 2.41,
+      "peak_rss_mb": 60.0,
+      "records": 0,
+      "speedup": 1.0,
+      "stage": "parse",
+      "workers": 1
+    },
+    {
+      "digests": [],
+      "efficiency": 0.7,
+      "events": 60072,
+      "events_per_second": 35223,
+      "median_seconds": 1.705,
+      "peak_rss_mb": 164.9,
+      "records": 0,
+      "speedup": 1.41,
+      "stage": "parse",
+      "workers": 2
+    },
+    {
+      "digests": [],
+      "efficiency": 0.47,
+      "events": 60072,
+      "events_per_second": 46625,
+      "median_seconds": 1.288,
+      "peak_rss_mb": 264.4,
+      "records": 0,
+      "speedup": 1.87,
+      "stage": "parse",
+      "workers": 4
+    },
+    {
+      "digests": [
+        "09acfbab4d4091e0"
+      ],
+      "efficiency": 1.0,
+      "events": 60072,
+      "events_per_second": 5986,
+      "median_seconds": 10.035,
+      "peak_rss_mb": 95.8,
+      "records": 0,
+      "speedup": 1.0,
+      "stage": "full",
+      "workers": 1
+    },
+    {
+      "digests": [
+        "09acfbab4d4091e0"
+      ],
+      "efficiency": 0.59,
+      "events": 60072,
+      "events_per_second": 7067,
+      "median_seconds": 8.5,
+      "peak_rss_mb": 195.4,
+      "records": 0,
+      "speedup": 1.18,
+      "stage": "full",
+      "workers": 2
+    },
+    {
+      "digests": [
+        "09acfbab4d4091e0"
+      ],
+      "efficiency": 0.29,
+      "events": 60072,
+      "events_per_second": 7088,
+      "median_seconds": 8.475,
+      "peak_rss_mb": 286.4,
+      "records": 0,
+      "speedup": 1.18,
+      "stage": "full",
+      "workers": 4
+    }
+  ],
+  "run_id": "5fd9fad6db57"
+}

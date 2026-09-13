@@ -231,7 +231,8 @@ def profile(config: Config, paths: list[Path]) -> tuple[dict, str]:
     profiler.disable()
 
     buffer = io.StringIO()
-    stats = pstats.Stats(profiler, stream=buffer).sort_stats("tottime")
+    # strip_dirs: the report is committed, local install paths are not.
+    stats = pstats.Stats(profiler, stream=buffer).strip_dirs().sort_stats("tottime")
     stats.print_stats(config.bench.profile_top_functions)
 
     total = sum(entry[2] for entry in stats.stats.values())  # type: ignore[attr-defined]

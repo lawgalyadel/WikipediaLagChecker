@@ -87,3 +87,26 @@ def test_replay_keeps_events_after_several_killed_members(tmp_path):
 def test_truncated_line_does_not_break_replay(tmp_path):
     _write(tmp_path, "2026-09-13-14.jsonl.gz", [json.dumps({"i": 1}), "{truncated"])
     assert [event["i"] for event in replay(tmp_path)] == [1]
+
+
+def test_describe_reports_coverage_gaps_in_event_time(tmp_path):
+    def at(minute):
+        return json.dumps({"meta": {"dt": f"2026-09-13T15:{minute:02d}:30Z"}})
+
+    _write(tmp_path, "2026-09-13-15.jsonl.gz", [at(0), at(1), at(5), at(6), at(9)])
+    stats = describe(tmp_path)
+
+    assert stats.first_event == "2026-09-13T15:00:00+00:00"
+    assert stats.last_event == "2026-09-13T15:09:00+00:00"
+    assert stats.gaps == [
+        ("2026-09-13T15:02:00+00:00", "2026-09-13T15:04:00+00:00", 3),
+        ("2026-09-13T15:07:00+00:00", "2026-09-13T15:08:00+00:00", 2),
+    ]
+
+
+def test_describe_counts_damaged_members(tmp_path):
+    (tmp_path / "p.jsonl.gz").write_bytes(
+        _killed_member([json.dumps({"i": 0})]) + _complete_member([json.dumps({"i": 1})])
+    )
+    stats = describe(tmp_path)
+    assert (stats.events, stats.damaged_members) == (2, 1)

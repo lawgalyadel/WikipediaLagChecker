@@ -1,0 +1,24 @@
+{
+  "damaged_members": 1,
+  "events": 60072,
+  "first_event": "2026-09-13T14:58:00+00:00",
+  "gap_minutes": 1,
+  "gaps": [
+    [
+      "2026-09-13T15:00:00+00:00",
+      "2026-09-13T15:00:00+00:00",
+      1
+    ]
+  ],
+  "generated_at": "2026-09-13T19:18:21.016648+00:00",
+  "last_event": "2026-09-13T18:59:00+00:00",
+  "partitions": 5,
+  "run_id": "b4598ce180e7",
+  "undecodable": 0,
+  "undecodable_rate": 0.0,
+  "window": {
+    "first_partition": "2026-09-13-14.jsonl.gz",
+    "last_partition": "2026-09-13-18.jsonl.gz",
+    "partitions": 5
+  }
+}

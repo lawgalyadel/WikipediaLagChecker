@@ -50,8 +50,12 @@ backoff_max_seconds = 60.0
 block_events = 5000
 
 [results]
-# Every measured number lands here as JSON; the README is generated from it.
-directory = "data/results"
+# Every measured number lands here as JSON and is committed; the README's
+# results section is generated from these files by `wikilag report`.
+directory = "results"
+# Per-record output is large and reproducible, so it stays out of git.
+records_path = "data/propagation_records.csv.gz"
+readme_path = "README.md"
 
 [join]
 watermark_seconds = 21600  # 6h; events arriving later are counted as dropped

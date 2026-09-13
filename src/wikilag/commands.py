@@ -17,7 +17,7 @@ from pathlib import Path
 
 import structlog
 
-from wikilag import failures
+from wikilag import failures, report
 from wikilag.analysis import LagAggregator
 from wikilag.bench import benchmark, profile
 from wikilag.config import Config
@@ -31,7 +31,7 @@ from wikilag.pairs import (
 )
 from wikilag.pipeline import resolved_edits, select_partitions, write_result
 from wikilag.propagation import PropagationJoin, PropagationRecord
-from wikilag.replay import replay_partitions
+from wikilag.replay import describe, replay_partitions
 from wikilag.resolver import HttpWikidataClient, ResolutionStore, Resolver
 
 log = structlog.get_logger(__name__)
@@ -62,6 +62,28 @@ class OfflineResolver:
 
     def __exit__(self, *exc_info: object) -> None:
         self._store.close()
+
+
+def run_stats(config: Config, pattern: str | None, run_id: str) -> None:
+    paths = select_partitions(config, pattern)
+    stats = describe(config.archive.directory, paths)
+    summary = {
+        "run_id": run_id,
+        "window": _time_window(paths),
+        **asdict(stats),
+        "undecodable_rate": round(stats.undecodable_rate, 6),
+        "gap_minutes": sum(minutes for _, _, minutes in stats.gaps),
+    }
+    path = write_result(config, "archive", summary)
+    log.info(
+        "archive.stats",
+        result=str(path),
+        partitions=stats.partitions,
+        events=stats.events,
+        undecodable=stats.undecodable,
+        damaged_members=stats.damaged_members,
+        gaps=len(stats.gaps),
+    )
 
 
 def run_resolve(config: Config, pattern: str | None, offline: bool, run_id: str) -> None:
@@ -109,7 +131,7 @@ def run_join(config: Config, pattern: str | None, run_id: str) -> None:
     paths = select_partitions(config, pattern)
     counts = EventCounts()
     aggregator = LagAggregator()
-    records_path = config.results.directory / "propagation_records.csv.gz"
+    records_path = config.results.records_path
     records_path.parent.mkdir(parents=True, exist_ok=True)
 
     started = time.perf_counter()
@@ -252,7 +274,7 @@ def run_failures_sample(
         raise SystemExit(
             f"{sheet} exists and may hold reviews; pass --force to replace it"
         )
-    records_path = config.results.directory / "propagation_records.csv.gz"
+    records_path = config.results.records_path
     if not records_path.exists():
         raise SystemExit(f"{records_path} not found; run `wikilag join` first")
 
@@ -298,6 +320,12 @@ def run_failures_summarise(config: Config, run_id: str) -> None:
         reviewed=result["reviewed"],
         confirmed_wrong=result["confirmed_wrong"],
     )
+
+
+def run_report(config: Config, run_id: str) -> None:
+    rendered = report.render(report.load_results(config.results.directory))
+    changed = report.update_readme(config.results.readme_path, rendered)
+    log.info("report.done", readme=str(config.results.readme_path), changed=changed)
 
 
 def _read_result(config: Config, name: str) -> dict:

@@ -62,6 +62,8 @@ class WikidataConfig:
 @dataclass(frozen=True)
 class ResultsConfig:
     directory: Path
+    records_path: Path
+    readme_path: Path
 
 
 @dataclass(frozen=True)
@@ -164,7 +166,11 @@ def load_config(path: str | Path | None = None) -> Config:
             backoff_max_seconds=wikidata["backoff_max_seconds"],
             block_events=wikidata["block_events"],
         ),
-        results=ResultsConfig(directory=Path(raw["results"]["directory"])),
+        results=ResultsConfig(
+            directory=Path(raw["results"]["directory"]),
+            records_path=Path(raw["results"]["records_path"]),
+            readme_path=Path(raw["results"]["readme_path"]),
+        ),
         join=JoinConfig(
             watermark_seconds=join["watermark_seconds"],
             reorder_seconds=join["reorder_seconds"],

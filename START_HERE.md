@@ -1,61 +1,56 @@
 # Start here
 
-Read in this order. Everything else is scaffolding you can ignore until it
-breaks.
+The pipeline is complete. What remains is data, and two jobs that need a
+person. `README.md` holds the results, the design notes and the
+reproduction commands.
 
-## 1. Do this first (today, before reading any code)
-
-```bash
-docker compose up
-```
-
-Leave it running. Every hour it runs is an hour of data you have on day
-five. If Docker is a hassle:
+## 1. Keep the archiver running
 
 ```bash
-pip install -e ".[dev]"
-python -m wikilag archive --max-events 20   # smoke test, then Ctrl-C
-python -m wikilag stats
+docker compose up -d
 ```
 
-Two things to check on that first real run, because I couldn't reach the
-stream to verify them:
+Or, without Docker, leave this running in a terminal that nothing else uses:
 
-- Is the wiki field in the payload `wiki` (`enwiki`) or `server_name`
-  (`en.wikipedia.org`)? Fix `should_keep` / the config list if it's the
-  latter, otherwise you'll archive nothing.
-- Does the SSE `id` come back as a JSON offset array? That's what makes
-  resume work after a disconnect.
+```bash
+python -m wikilag archive
+```
 
-## 2. The files that matter
+Propagation numbers need more than 12 hours of continuous archive (6h
+watermark plus 6h warm-up), and they get better with days. Stop the machine
+sleeping. Short outages are caught up from the stream on resume, but long
+ones leave gaps, and `wikilag stats` reports them.
 
-| File | Why you care |
-|---|---|
-| `src/wikilag/archiver.py` | The thing that runs today. Hourly gzip partitions + offset resume. |
-| `src/wikilag/replay.py` | Deterministic replay. Every experiment goes through here, never the live stream. |
-| `config/default.toml` | Wiki list and watermark. The two decisions you should make deliberately. |
-| `README.md` | Empty results tables, waiting for measured numbers. |
+## 2. Label the baseline pairs
 
-## 3. The files that are just plumbing
+Open `labels/pairs.csv` and fill `same_subject` with `y` or `n` for all 200
+rows. Open both URLs and judge whether the two articles are about the same
+subject. Don't rely on the interlanguage links in the sidebar: those come
+from Wikidata, the method being evaluated. The sheet is blind on purpose, so
+don't open `labels/pairs.key.csv` until you're done. Then run:
 
-`sse.py` (parser, done and tested), `config.py`, `logging_setup.py`,
-`__main__.py`, `Dockerfile`, `docker-compose.yml`, `.github/workflows/ci.yml`.
-Written once, unlikely to change.
+```bash
+python -m wikilag pairs evaluate
+python -m wikilag report
+```
 
-## 4. What doesn't exist yet
+If you redraw the sample over a longer window (`pairs sample --force`), do
+it before labelling. Redrawing replaces the sheet.
 
-- **Days 2–3** — Wikidata sitelink resolution with a bounded LRU cache.
-  The distinctive part. Report hit rate from the start.
-- **Day 4** — the propagation join, bounded state at the 6h watermark.
-- **Day 5** — naive title-match baseline, 200 hand-labelled pairs,
-  scaling numbers at 1/2/4 workers.
-- **Day 6** — 20 wrong pairs categorised, README filled in.
+## 3. Review failure cases
 
-## 5. Two decisions to make before day 2
+Once `wikilag join` emits records (after the 12h mark), run:
 
-They live in `config/default.toml` and are annoying to change later:
+```bash
+python -m wikilag failures sample
+```
 
-- **Which editions.** Currently 18, deliberately not all-European. Widening
-  adds volume without adding a finding.
-- **The watermark.** Currently 6h. Slower propagation than that gets
-  recorded as non-propagation, so the number you pick shapes the result.
+In `labels/failures.csv`, mark `confirmed_wrong` for each case and set
+`category` where the suggestion is wrong. Stop once 20 cases are confirmed
+wrong. Then run `failures summarise` and `report`.
+
+## 4. Before calling it done
+
+Re-run the full sequence under "Reproducing the results" in the README over
+the whole archive, then run `wikilag report`. Clone the repo into a fresh
+directory and check that `docker compose up` works there without edits.

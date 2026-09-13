@@ -1,0 +1,93 @@
+{
+  "elapsed_seconds": 2.35,
+  "events": {
+    "duplicate": 66,
+    "filtered": {
+      "type:log": 5041
+    },
+    "kept": 54965,
+    "malformed": 0,
+    "seen": 60072
+  },
+  "generated_at": "2026-09-13T19:18:37.226909+00:00",
+  "join": {
+    "bot_edits": 10829,
+    "closed_with_human_edit": 0,
+    "cross_edition_bot_edits": 0,
+    "cross_edition_human_edits": 0,
+    "cross_edition_items": 0,
+    "edits_in": 54965,
+    "human_edits": 41171,
+    "late_followup_edits": 0,
+    "late_followup_items": 0,
+    "out_of_order": 0,
+    "peak_closed_remembered": 0,
+    "peak_open_windows": 36444,
+    "peak_reorder_buffer": 710,
+    "reached_rank": {
+      "2": 0,
+      "3": 0,
+      "5": 0
+    },
+    "warmup_windows": 36444,
+    "windows_closed": 0,
+    "windows_open_at_end": 36444,
+    "windows_opened": 36444,
+    "without_item": 2965
+  },
+  "lags": {
+    "editions": [],
+    "lag_by_pair": [],
+    "lag_by_rank": {},
+    "pairs_below_min_samples": 0,
+    "records": 0
+  },
+  "partitions": [
+    "2026-09-13-14.jsonl.gz",
+    "2026-09-13-15.jsonl.gz",
+    "2026-09-13-16.jsonl.gz",
+    "2026-09-13-17.jsonl.gz",
+    "2026-09-13-18.jsonl.gz"
+  ],
+  "rates": {
+    "bot_share_of_cross_edition_edits": null,
+    "edits_without_item": 0.0539,
+    "late_followup_items": null,
+    "never_propagated": null,
+    "reached_rank": {
+      "2": null,
+      "3": null,
+      "5": null
+    }
+  },
+  "records_file": "data\\propagation_records.csv.gz",
+  "reorder_seconds": 120,
+  "resolver": {
+    "api_errors": 0,
+    "cache_hit_rate": 0.1448,
+    "cache_hits": 7961,
+    "coalesced": 7303,
+    "evictions": 0,
+    "failed_titles": 0,
+    "keys_with_item": 37724,
+    "keys_without_item": 1977,
+    "lookup_latency_p50_ms": null,
+    "lookup_latency_p95_ms": null,
+    "negative_cache_hits": 545,
+    "network_requests": 0,
+    "network_titles": 0,
+    "offline_unresolved": 0,
+    "rate_limited": 0,
+    "references": 54965,
+    "retries": 0,
+    "store_hits": 39701
+  },
+  "run_id": "4efff4c8f63f",
+  "warmup_seconds": 21600,
+  "watermark_seconds": 21600,
+  "window": {
+    "first_partition": "2026-09-13-14.jsonl.gz",
+    "last_partition": "2026-09-13-18.jsonl.gz",
+    "partitions": 5
+  }
+}

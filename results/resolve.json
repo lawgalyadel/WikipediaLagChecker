@@ -1,0 +1,46 @@
+{
+  "cache_size": 50000,
+  "edits_with_item": 52000,
+  "edits_with_item_rate": 0.9461,
+  "elapsed_seconds": 9.81,
+  "events": {
+    "duplicate": 66,
+    "filtered": {
+      "type:log": 5041
+    },
+    "kept": 54965,
+    "malformed": 0,
+    "seen": 60072
+  },
+  "generated_at": "2026-09-13T19:18:31.473380+00:00",
+  "offline": false,
+  "partitions": [
+    "2026-09-13-14.jsonl.gz",
+    "2026-09-13-15.jsonl.gz",
+    "2026-09-13-16.jsonl.gz",
+    "2026-09-13-17.jsonl.gz",
+    "2026-09-13-18.jsonl.gz"
+  ],
+  "resolver": {
+    "api_errors": 0,
+    "cache_hit_rate": 0.1448,
+    "cache_hits": 7961,
+    "coalesced": 7303,
+    "evictions": 0,
+    "failed_titles": 0,
+    "keys_with_item": 37724,
+    "keys_without_item": 1977,
+    "lookup_latency_p50_ms": 288.4,
+    "lookup_latency_p95_ms": 694.6,
+    "negative_cache_hits": 545,
+    "network_requests": 21,
+    "network_titles": 417,
+    "offline_unresolved": 0,
+    "rate_limited": 0,
+    "references": 54965,
+    "retries": 0,
+    "store_hits": 39284
+  },
+  "run_id": "28bfcb037fe9",
+  "store_entries": 39701
+}

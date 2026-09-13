@@ -12,7 +12,8 @@ import io
 import json
 import zlib
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import structlog
@@ -30,6 +31,11 @@ class ReplayStats:
     partitions: int
     events: int
     undecodable: int
+    damaged_members: int = 0
+    first_event: str | None = None  # ISO minute
+    last_event: str | None = None
+    # Runs of whole minutes with no archived event, as (start, end, minutes).
+    gaps: list[tuple[str, str, int]] = field(default_factory=list)
 
     @property
     def undecodable_rate(self) -> float:
@@ -42,7 +48,7 @@ def partitions(directory: Path) -> list[Path]:
     return sorted(directory.glob("*.jsonl.gz"))
 
 
-def read_lines(partition: Path) -> Iterator[str]:
+def read_lines(partition: Path, damaged: list[int] | None = None) -> Iterator[str]:
     """Non-empty lines from a partition, tolerating killed gzip members.
 
     The archiver appends one gzip member per open. A hard kill leaves that
@@ -50,7 +56,8 @@ def read_lines(partition: Path) -> Iterator[str]:
     fresh member after it, so a damaged member can sit mid-file as well as
     at the end. `gzip.open` raises on either. Here each member is decoded
     on its own; a damaged one yields what was flushed, then decoding
-    resumes at the next gzip header.
+    resumes at the next gzip header. Byte offsets of damaged members are
+    appended to `damaged` when given, so they can be counted.
     """
     data = partition.read_bytes()
     start = 0
@@ -60,6 +67,8 @@ def read_lines(partition: Path) -> Iterator[str]:
             start = end
             continue
         log.warning("partition.damaged_member", partition=partition.name, at=start)
+        if damaged is not None:
+            damaged.append(start)
         resync = data.find(GZIP_MAGIC, start + 1)
         if resync == -1:
             return
@@ -130,23 +139,63 @@ def replay_partitions(paths: Iterable[Path]) -> Iterator[dict]:
                 continue
 
 
-def describe(directory: Path) -> ReplayStats:
+def describe(directory: Path, files: list[Path] | None = None) -> ReplayStats:
     """Count what is in the archive, including what failed to decode.
 
     The undecodable count feeds the drop table in the README. Reporting
-    zero is fine; not knowing is not.
+    zero is fine; not knowing is not. Coverage gaps — whole minutes with no
+    event, from outages or a sleeping laptop — are found from event time,
+    because a gap silently shortens every propagation window across it.
     """
     events = 0
     undecodable = 0
-    files = partitions(directory)
+    damaged: list[int] = []
+    minutes: set[datetime] = set()
+    files = partitions(directory) if files is None else files
 
     for partition in files:
-        for line in read_lines(partition):
+        for line in read_lines(partition, damaged):
             try:
-                json.loads(line)
+                event = json.loads(line)
             except json.JSONDecodeError:
                 undecodable += 1
-            else:
-                events += 1
+                continue
+            events += 1
+            minute = _event_minute(event)
+            if minute is not None:
+                minutes.add(minute)
 
-    return ReplayStats(partitions=len(files), events=events, undecodable=undecodable)
+    first = min(minutes) if minutes else None
+    last = max(minutes) if minutes else None
+    return ReplayStats(
+        partitions=len(files),
+        events=events,
+        undecodable=undecodable,
+        damaged_members=len(damaged),
+        first_event=first.isoformat() if first else None,
+        last_event=last.isoformat() if last else None,
+        gaps=_gaps(sorted(minutes)),
+    )
+
+
+def _event_minute(event: dict) -> datetime | None:
+    dt = (event.get("meta") or {}).get("dt") if isinstance(event, dict) else None
+    if not isinstance(dt, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.replace(second=0, microsecond=0)
+
+
+def _gaps(ordered: list[datetime]) -> list[tuple[str, str, int]]:
+    step = timedelta(minutes=1)
+    gaps = []
+    for previous, current in zip(ordered, ordered[1:], strict=False):
+        if current - previous > step:
+            start, end = previous + step, current - step
+            gaps.append(
+                (start.isoformat(), end.isoformat(), (current - previous) // step - 1)
+            )
+    return gaps
