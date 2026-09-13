@@ -1,4 +1,5 @@
 import gzip
+import io
 import json
 
 from wikilag.replay import describe, replay
@@ -49,6 +50,38 @@ def test_replay_survives_a_hard_killed_partition(tmp_path):
 
     assert [event["i"] for event in replay(tmp_path)] == [1, 2]
     assert describe(tmp_path).events == 2
+
+
+def _killed_member(rows):
+    """Bytes of a gzip member flushed but never closed, as after a kill."""
+    buffer = io.BytesIO()
+    writer = gzip.GzipFile(fileobj=buffer, mode="wb")
+    writer.write("".join(row + "\n" for row in rows).encode())
+    writer.flush()
+    return buffer.getvalue()
+
+
+def _complete_member(rows):
+    return gzip.compress("".join(row + "\n" for row in rows).encode())
+
+
+def test_replay_continues_past_a_killed_member_mid_file(tmp_path):
+    # A restarted archiver appends a fresh member after the killed one.
+    rows = [json.dumps({"i": i}) for i in range(4)]
+    (tmp_path / "p.jsonl.gz").write_bytes(
+        _killed_member(rows[:2]) + _complete_member(rows[2:])
+    )
+    assert [event["i"] for event in replay(tmp_path)] == [0, 1, 2, 3]
+
+
+def test_replay_keeps_events_after_several_killed_members(tmp_path):
+    rows = [json.dumps({"i": i}) for i in range(600)]
+    (tmp_path / "p.jsonl.gz").write_bytes(
+        _killed_member(rows[:200])
+        + _killed_member(rows[200:400])
+        + _complete_member(rows[400:])
+    )
+    assert [event["i"] for event in replay(tmp_path)] == list(range(600))
 
 
 def test_truncated_line_does_not_break_replay(tmp_path):
