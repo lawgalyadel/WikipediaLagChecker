@@ -74,6 +74,22 @@ repeats = 3                          # median wall time is reported
 rss_sample_interval_seconds = 0.05   # peak RSS is sampled, main + workers
 profile_top_functions = 25
 
+[failures]
+candidates = 60                 # records reviewed to find 20 wrong ones
+sample_seed = 20260914
+sheet_path = "labels/failures.csv"
+# Evidence heuristics. They suggest a category; a person confirms it.
+bot_user_pattern = "(?i)bot\\b"
+revert_comment_patterns = [
+  "(?i)\\brevert", "(?i)\\bundid\\b", "(?i)\\brv\\b", "(?i)rückgängig",
+  "(?i)annul", "(?i)отмен", "(?i)deshecha", "(?i)revertid", "取り消し", "撤销", "되돌림",
+]
+trivial_bytes = 10              # |size change| at or below this is maintenance
+disambiguation_markers = [
+  "(disambiguation)", "(desambiguación)", "(homonymie)", "(Begriffsklärung)",
+  "(disambigua)", "(значения)", "(曖昧さ回避)", "(消歧义)",
+]
+
 [baseline]
 sample_size = 200
 sample_seed = 20260913

@@ -83,6 +83,17 @@ class BenchConfig:
 
 
 @dataclass(frozen=True)
+class FailuresConfig:
+    candidates: int
+    sample_seed: int
+    sheet_path: Path
+    bot_user_pattern: str
+    revert_comment_patterns: list[str]
+    trivial_bytes: int
+    disambiguation_markers: list[str]
+
+
+@dataclass(frozen=True)
 class BaselineConfig:
     sample_size: int
     sample_seed: int
@@ -100,6 +111,7 @@ class Config:
     join: JoinConfig
     baseline: BaselineConfig
     bench: BenchConfig
+    failures: FailuresConfig
     raw: dict = field(default_factory=dict, repr=False)
 
 
@@ -171,6 +183,15 @@ def load_config(path: str | Path | None = None) -> Config:
             repeats=raw["bench"]["repeats"],
             rss_sample_interval_seconds=raw["bench"]["rss_sample_interval_seconds"],
             profile_top_functions=raw["bench"]["profile_top_functions"],
+        ),
+        failures=FailuresConfig(
+            candidates=raw["failures"]["candidates"],
+            sample_seed=raw["failures"]["sample_seed"],
+            sheet_path=Path(raw["failures"]["sheet_path"]),
+            bot_user_pattern=raw["failures"]["bot_user_pattern"],
+            revert_comment_patterns=list(raw["failures"]["revert_comment_patterns"]),
+            trivial_bytes=raw["failures"]["trivial_bytes"],
+            disambiguation_markers=list(raw["failures"]["disambiguation_markers"]),
         ),
         raw=raw,
     )

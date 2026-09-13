@@ -51,6 +51,13 @@ def build_parser() -> argparse.ArgumentParser:
     sample.add_argument("--force", action="store_true", help="replace existing labels")
     pairs_sub.add_parser("evaluate", help="precision and recall from the labels")
 
+    failures = sub.add_parser("failures", help="failure analysis review sheet")
+    failures_sub = failures.add_subparsers(dest="failures_command", required=True)
+    review = failures_sub.add_parser("sample", help="write the review sheet")
+    review.add_argument("--partitions", default=None, help="glob within the archive")
+    review.add_argument("--force", action="store_true", help="replace existing reviews")
+    failures_sub.add_parser("summarise", help="count confirmed failures by category")
+
     for name, help_text in (
         ("bench", "throughput and peak RSS at each worker count"),
         ("profile", "cProfile of a single-worker replay"),
@@ -88,6 +95,10 @@ def main(argv: list[str] | None = None) -> int:
         commands.run_pairs_sample(config, args.partitions, args.force, run_id)
     elif args.command == "pairs" and args.pairs_command == "evaluate":
         commands.run_pairs_evaluate(config, run_id)
+    elif args.command == "failures" and args.failures_command == "sample":
+        commands.run_failures_sample(config, args.partitions, args.force, run_id)
+    elif args.command == "failures" and args.failures_command == "summarise":
+        commands.run_failures_summarise(config, run_id)
     elif args.command == "bench":
         commands.run_bench(config, args.partitions, args.label, run_id)
     elif args.command == "profile":

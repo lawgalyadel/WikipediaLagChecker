@@ -17,6 +17,7 @@ from pathlib import Path
 
 import structlog
 
+from wikilag import failures
 from wikilag.analysis import LagAggregator
 from wikilag.bench import benchmark, profile
 from wikilag.config import Config
@@ -30,6 +31,7 @@ from wikilag.pairs import (
 )
 from wikilag.pipeline import resolved_edits, select_partitions, write_result
 from wikilag.propagation import PropagationJoin, PropagationRecord
+from wikilag.replay import replay_partitions
 from wikilag.resolver import HttpWikidataClient, ResolutionStore, Resolver
 
 log = structlog.get_logger(__name__)
@@ -240,6 +242,62 @@ def run_profile(config: Config, pattern: str | None, label: str, run_id: str) ->
     for row in result["top"][:8]:
         log.info("profile.top", **row)
     log.info("profile.done", result=str(path), elapsed_seconds=result["elapsed_seconds"])
+
+
+def run_failures_sample(
+    config: Config, pattern: str | None, force: bool, run_id: str
+) -> None:
+    sheet = config.failures.sheet_path
+    if sheet.exists() and not force:
+        raise SystemExit(
+            f"{sheet} exists and may hold reviews; pass --force to replace it"
+        )
+    records_path = config.results.directory / "propagation_records.csv.gz"
+    if not records_path.exists():
+        raise SystemExit(f"{records_path} not found; run `wikilag join` first")
+
+    sampled = failures.sample_records(
+        failures.read_records(records_path),
+        config.failures.candidates,
+        config.failures.sample_seed,
+    )
+    wanted = {
+        failures.edit_key(record, side)
+        for record in sampled
+        for side in ("leader", "follower")
+    }
+    evidence = failures.evidence_from_events(
+        replay_partitions(select_partitions(config, pattern)), wanted
+    )
+    rows = failures.build_sheet(sampled, evidence, config)
+    failures.write_sheet(sheet, rows)
+
+    suggested: dict[str, int] = {}
+    for row in rows:
+        suggested[row["suggested_category"]] = (
+            suggested.get(row["suggested_category"], 0) + 1
+        )
+    summary = {
+        "run_id": run_id,
+        "candidates": len(rows),
+        "evidence_found": len(evidence),
+        "evidence_wanted": len(wanted),
+        "suggested_categories": suggested,
+        "sheet": str(sheet),
+    }
+    path = write_result(config, "failures_sample", summary)
+    log.info("failures.sampled", result=str(path), **suggested)
+
+
+def run_failures_summarise(config: Config, run_id: str) -> None:
+    result = failures.summarise_sheet(config.failures.sheet_path)
+    path = write_result(config, "failures", {"run_id": run_id, **result})
+    log.info(
+        "failures.summarised",
+        result=str(path),
+        reviewed=result["reviewed"],
+        confirmed_wrong=result["confirmed_wrong"],
+    )
 
 
 def _read_result(config: Config, name: str) -> dict:
