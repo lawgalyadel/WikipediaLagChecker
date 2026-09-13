@@ -1,5 +1,7 @@
 # wikilag
 
+[![ci](https://github.com/lawgalyadel/WikipediaLagChecker/actions/workflows/ci.yml/badge.svg)](https://github.com/lawgalyadel/WikipediaLagChecker/actions/workflows/ci.yml)
+
 Measuring how long it takes an edit about the same subject to propagate from
 one Wikipedia language edition to the next, using Wikimedia's live
 `recentchange` stream.
@@ -71,9 +73,17 @@ before/after measurement mean anything.
 
 ## Design notes
 
-**Resume, not restart.** The last event id is persisted after every archived
-event, written to a temp file and renamed so a crash cannot leave a
-truncated offset. On reconnect it goes back as `Last-Event-ID`.
+**Resume, not restart.** The last event id is persisted only after the data
+behind it has been flushed to disk (every `flush_every_events`), written to
+a temp file and renamed so a crash cannot leave a truncated offset. On
+reconnect it goes back as `Last-Event-ID`. A hard kill therefore
+re-archives up to one flush interval rather than leaving a gap; duplicates
+are removed downstream by `meta.id`.
+
+**Killed partitions stay readable.** A kill leaves the open gzip member
+without its end marker, and a restart appends a new member after it. Replay
+decodes member by member and resumes at the next gzip header, so a damaged
+member costs only its unflushed tail.
 
 **Bots are archived, not discarded.** Bots mirror content across editions
 mechanically and would swamp the human propagation signal, so they are
