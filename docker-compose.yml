@@ -2,7 +2,7 @@ services:
   archiver:
     build: .
     environment:
-      WIKILAG_CONFIG: /app/config/default.toml
+      WIKIPEDIA_LAG_CHECKER_CONFIG: /app/config/default.toml
     volumes:
       - ./data:/app/data
       - ./config:/app/config:ro

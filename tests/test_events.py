@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from wikilag.config import load_config
-from wikilag.events import EventCounts, RecentIds, edits, to_edit
+from WikipediaLagChecker.config import load_config
+from WikipediaLagChecker.events import EventCounts, RecentIds, edits, to_edit
 
 CONFIG = load_config(Path("config/default.toml"))
 

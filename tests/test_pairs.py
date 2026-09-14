@@ -1,7 +1,7 @@
 import csv
 
-from wikilag.events import Edit
-from wikilag.pairs import (
+from WikipediaLagChecker.events import Edit
+from WikipediaLagChecker.pairs import (
     allocate,
     build_pairs,
     evaluate,

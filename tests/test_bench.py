@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from wikilag.bench import _merge, parse_partition
-from wikilag.config import load_config
-from wikilag.events import EventCounts
+from WikipediaLagChecker.bench import _merge, parse_partition
+from WikipediaLagChecker.config import load_config
+from WikipediaLagChecker.events import EventCounts
 
 CONFIG = load_config(Path("config/default.toml"))
 

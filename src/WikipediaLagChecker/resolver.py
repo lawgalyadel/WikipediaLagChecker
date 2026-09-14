@@ -28,7 +28,7 @@ from typing import Protocol
 import httpx
 import structlog
 
-from wikilag.config import WikidataConfig
+from WikipediaLagChecker.config import WikidataConfig
 
 log = structlog.get_logger(__name__)
 

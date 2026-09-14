@@ -11,7 +11,7 @@ from collections import OrderedDict
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 
-from wikilag.config import Config
+from WikipediaLagChecker.config import Config
 
 
 @dataclass(frozen=True, slots=True)

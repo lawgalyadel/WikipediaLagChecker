@@ -1,9 +1,9 @@
 import itertools
 
-from wikilag.analysis import LagAggregator
-from wikilag.config import JoinConfig
-from wikilag.events import Edit
-from wikilag.propagation import PropagationJoin
+from WikipediaLagChecker.analysis import LagAggregator
+from WikipediaLagChecker.config import JoinConfig
+from WikipediaLagChecker.events import Edit
+from WikipediaLagChecker.propagation import PropagationJoin
 
 _ids = itertools.count()
 

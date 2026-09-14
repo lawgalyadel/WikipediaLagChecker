@@ -4,8 +4,8 @@ import socket
 import httpx
 import pytest
 
-from wikilag.config import WikidataConfig
-from wikilag.resolver import (
+from WikipediaLagChecker.config import WikidataConfig
+from WikipediaLagChecker.resolver import (
     ApiError,
     HttpWikidataClient,
     LRUCache,
@@ -35,7 +35,7 @@ REAL_RESPONSE = {
 def make_config(**overrides) -> WikidataConfig:
     values = {
         "api_url": "https://wikidata.invalid/w/api.php",
-        "user_agent": "wikilag-tests",
+        "user_agent": "WikipediaLagChecker-tests",
         "batch_size": 50,
         "cache_size": 100,
         "store_path": ":memory:",

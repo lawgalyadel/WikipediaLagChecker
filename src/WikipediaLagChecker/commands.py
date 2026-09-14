@@ -17,22 +17,22 @@ from pathlib import Path
 
 import structlog
 
-from wikilag import failures, report
-from wikilag.analysis import LagAggregator
-from wikilag.bench import benchmark, profile
-from wikilag.config import Config
-from wikilag.events import EventCounts
-from wikilag.pairs import (
+from WikipediaLagChecker import failures, report
+from WikipediaLagChecker.analysis import LagAggregator
+from WikipediaLagChecker.bench import benchmark, profile
+from WikipediaLagChecker.config import Config
+from WikipediaLagChecker.events import EventCounts
+from WikipediaLagChecker.pairs import (
     build_pairs,
     evaluate,
     key_path,
     sample_for_labelling,
     write_labelling_files,
 )
-from wikilag.pipeline import resolved_edits, select_partitions, write_result
-from wikilag.propagation import PropagationJoin, PropagationRecord
-from wikilag.replay import describe, replay_partitions
-from wikilag.resolver import HttpWikidataClient, ResolutionStore, Resolver
+from WikipediaLagChecker.pipeline import resolved_edits, select_partitions, write_result
+from WikipediaLagChecker.propagation import PropagationJoin, PropagationRecord
+from WikipediaLagChecker.replay import describe, replay_partitions
+from WikipediaLagChecker.resolver import HttpWikidataClient, ResolutionStore, Resolver
 
 log = structlog.get_logger(__name__)
 
@@ -337,7 +337,9 @@ def run_failures_sample(
 
     records_path = config.results.records_path
     if not records_path.exists():
-        raise SystemExit(f"{records_path} not found; run `wikilag join` first")
+        raise SystemExit(
+            f"{records_path} not found; run `python -m WikipediaLagChecker join` first"
+        )
 
     all_records = failures.read_records(records_path)
     sampled = failures.sample_records(

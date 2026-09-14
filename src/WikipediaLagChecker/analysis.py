@@ -12,8 +12,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from wikilag.propagation import ItemWindow, PropagationRecord
-from wikilag.resolver import percentile
+from WikipediaLagChecker.propagation import ItemWindow, PropagationRecord
+from WikipediaLagChecker.resolver import percentile
 
 
 @dataclass

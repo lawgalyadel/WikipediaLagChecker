@@ -21,8 +21,8 @@ from pathlib import Path
 import httpx
 import structlog
 
-from wikilag.config import Config
-from wikilag.sse import SSEMessage, parse_sse
+from WikipediaLagChecker.config import Config
+from WikipediaLagChecker.sse import SSEMessage, parse_sse
 
 log = structlog.get_logger(__name__)
 
@@ -149,7 +149,7 @@ def should_keep(event: dict, config: Config) -> bool:
 
 def stream_messages(config: Config, resume_from: str | None) -> Iterator[SSEMessage]:
     """Connect and yield messages until the connection drops."""
-    headers = {"User-Agent": "wikilag/0.1 (student research project)"}
+    headers = {"User-Agent": "WikipediaLagChecker/0.1 (student research project)"}
     if resume_from:
         headers["Last-Event-ID"] = resume_from
 

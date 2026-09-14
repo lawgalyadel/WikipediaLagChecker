@@ -1,6 +1,6 @@
 import pytest
 
-from wikilag.report import (
+from WikipediaLagChecker.report import (
     MARK_END,
     MARK_START,
     RESULT_NAMES,
@@ -16,9 +16,9 @@ def empty():
 
 def test_missing_results_render_as_commands_not_numbers():
     rendered = render(empty())
-    assert "run `wikilag stats`" in rendered
-    assert "run `wikilag join`" in rendered
-    assert "run `wikilag bench --label after`" in rendered
+    assert "run `python -m WikipediaLagChecker stats`" in rendered
+    assert "run `python -m WikipediaLagChecker join`" in rendered
+    assert "run `python -m WikipediaLagChecker bench --label after`" in rendered
     assert "0.0%" not in rendered
 
 
@@ -58,7 +58,7 @@ def test_baseline_without_labels_reports_counts_but_not_precision():
     }
     rendered = render(results)
     assert "| Cross-edition pairs found | 678 | 1,867 |" in rendered
-    assert "run `wikilag pairs evaluate`" in rendered
+    assert "run `python -m WikipediaLagChecker pairs evaluate`" in rendered
     assert "1,211 pairs are found only by Wikidata" in rendered
 
 

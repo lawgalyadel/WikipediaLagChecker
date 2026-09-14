@@ -14,10 +14,10 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 
-from wikilag.config import Config
-from wikilag.events import Edit, EventCounts, edits
-from wikilag.replay import partitions, replay_partitions
-from wikilag.resolver import Resolver
+from WikipediaLagChecker.config import Config
+from WikipediaLagChecker.events import Edit, EventCounts, edits
+from WikipediaLagChecker.replay import partitions, replay_partitions
+from WikipediaLagChecker.resolver import Resolver
 
 
 def select_partitions(config: Config, pattern: str | None) -> list[Path]:

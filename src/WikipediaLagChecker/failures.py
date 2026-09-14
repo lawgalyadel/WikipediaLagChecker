@@ -29,8 +29,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from wikilag.config import Config
-from wikilag.pairs import parse_label
+from WikipediaLagChecker.config import Config
+from WikipediaLagChecker.pairs import parse_label
 
 SHEET_FIELDS = [
     "case_id",

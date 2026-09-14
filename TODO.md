@@ -9,12 +9,12 @@ README. This is what's left.
 docker compose up -d
 ```
 
-Or run `python -m wikilag archive` in a terminal that's only used for that.
+Or run `python -m WikipediaLagChecker archive` in a terminal that's only used for that.
 
 Propagation numbers need more than 12 hours of continuous archive (6h
 watermark + 6h warm-up), and a few days would be better. Don't let the
 laptop sleep. Short outages get caught up from the stream when it
-reconnects, but long ones leave gaps (`wikilag stats` shows them).
+reconnects, but long ones leave gaps (`python -m WikipediaLagChecker stats` shows them).
 
 ## 2. Label the baseline pairs
 
@@ -25,8 +25,8 @@ those come from Wikidata, which is what's being tested. Don't open
 `labels/pairs.key.csv` until all rows are done. Then:
 
 ```bash
-python -m wikilag pairs evaluate
-python -m wikilag report
+python -m WikipediaLagChecker pairs evaluate
+python -m WikipediaLagChecker report
 ```
 
 To redraw the sample over a longer window (`pairs sample --force`), do it
@@ -34,10 +34,10 @@ before labelling, because it replaces the sheet.
 
 ## 3. Review failure cases
 
-Once `wikilag join` starts producing records (after the 12h mark):
+Once `python -m WikipediaLagChecker join` starts producing records (after the 12h mark):
 
 ```bash
-python -m wikilag failures sample
+python -m WikipediaLagChecker failures sample
 ```
 
 In `labels/failures.csv`, fill in `confirmed_wrong` for each case and fix
@@ -47,6 +47,6 @@ then run `failures summarise` and `report`.
 ## 4. Final checks
 
 - Re-run everything under "Reproducing the results" in the README over the
-  full archive, then `wikilag report`.
+  full archive, then `python -m WikipediaLagChecker report`.
 - Clone the repo into a new folder and check that `docker compose up` works
   there without changes.

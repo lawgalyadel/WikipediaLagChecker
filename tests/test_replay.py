@@ -2,7 +2,7 @@ import gzip
 import io
 import json
 
-from wikilag.replay import describe, replay
+from WikipediaLagChecker.replay import describe, replay
 
 
 def _write(directory, name, rows):

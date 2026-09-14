@@ -1,4 +1,4 @@
-from wikilag.sse import parse_sse
+from WikipediaLagChecker.sse import parse_sse
 
 
 def test_parses_a_single_event_block():

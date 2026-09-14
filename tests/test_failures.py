@@ -2,8 +2,8 @@ import csv
 import dataclasses
 from pathlib import Path
 
-from wikilag.config import load_config
-from wikilag.failures import (
+from WikipediaLagChecker.config import load_config
+from WikipediaLagChecker.failures import (
     EditEvidence,
     build_sheet,
     evidence_from_events,

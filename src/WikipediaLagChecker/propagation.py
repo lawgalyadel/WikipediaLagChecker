@@ -30,8 +30,8 @@ from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from wikilag.config import JoinConfig
-from wikilag.events import Edit
+from WikipediaLagChecker.config import JoinConfig
+from WikipediaLagChecker.events import Edit
 
 
 @dataclass(frozen=True, slots=True)

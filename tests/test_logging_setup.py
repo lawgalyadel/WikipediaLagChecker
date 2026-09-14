@@ -3,7 +3,7 @@ import logging
 
 import structlog
 
-from wikilag.logging_setup import configure
+from WikipediaLagChecker.logging_setup import configure
 
 
 def _records(capsys):
@@ -12,7 +12,7 @@ def _records(capsys):
 
 def test_package_logs_are_json_with_run_id(capsys):
     run_id = configure("INFO", run_id="abc123")
-    structlog.get_logger("wikilag.test").info("thing.happened", count=3)
+    structlog.get_logger("WikipediaLagChecker.test").info("thing.happened", count=3)
 
     (record,) = _records(capsys)
     assert record["event"] == "thing.happened"
@@ -34,6 +34,6 @@ def test_third_party_stdlib_logs_are_json_too(capsys):
 
 def test_level_filters_both_paths(capsys):
     configure("WARNING", run_id="abc123")
-    structlog.get_logger("wikilag.test").info("hidden")
+    structlog.get_logger("WikipediaLagChecker.test").info("hidden")
     logging.getLogger("httpx").info("hidden too")
     assert _records(capsys) == []

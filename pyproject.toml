@@ -1,5 +1,5 @@
 [project]
-name = "wikilag"
+name = "WikipediaLagChecker"
 version = "0.1.0"
 description = "Cross-language propagation lag over the Wikimedia edit stream"
 requires-python = ">=3.11"

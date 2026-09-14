@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import quote
 
-from wikilag.events import Edit
+from WikipediaLagChecker.events import Edit
 
 Page = tuple[str, str]  # (wiki, title)
 Pair = tuple[Page, Page]  # sorted, so each unordered pair has one spelling

@@ -34,7 +34,7 @@ dedupe_window_events = 20000
 
 [wikidata]
 api_url = "https://www.wikidata.org/w/api.php"
-user_agent = "wikilag/0.1 (https://github.com/lawgalyadel/WikipediaLagChecker)"
+user_agent = "WikipediaLagChecker/0.1 (https://github.com/lawgalyadel/WikipediaLagChecker)"
 batch_size = 50              # API maximum titles per wbgetentities request
 cache_size = 50000           # in-memory LRU entries, positive and negative
 store_path = "data/wikidata.sqlite"  # frozen resolutions; replay reads these
@@ -50,7 +50,7 @@ block_events = 5000
 
 [results]
 # Every measured number lands here as JSON and is committed; the README's
-# results section is generated from these files by `wikilag report`.
+# results section is generated from these files by `python -m WikipediaLagChecker report`.
 directory = "results"
 # Per-record output is large and reproducible, so it stays out of git.
 records_path = "data/propagation_records.csv.gz"

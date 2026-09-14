@@ -120,14 +120,14 @@ class Config:
 def load_config(path: str | Path | None = None) -> Config:
     """Load config from TOML.
 
-    Path precedence: explicit argument, then $WIKILAG_CONFIG, then the
+    Path precedence: explicit argument, then $WIKIPEDIA_LAG_CHECKER_CONFIG, then the
     repo default. Kept in that order so docker-compose can point at a
     different file without touching the image.
     """
     if path:
         resolved = Path(path)
-    elif os.environ.get("WIKILAG_CONFIG"):
-        resolved = Path(os.environ["WIKILAG_CONFIG"])
+    elif os.environ.get("WIKIPEDIA_LAG_CHECKER_CONFIG"):
+        resolved = Path(os.environ["WIKIPEDIA_LAG_CHECKER_CONFIG"])
     else:
         resolved = DEFAULT_CONFIG_PATH
 

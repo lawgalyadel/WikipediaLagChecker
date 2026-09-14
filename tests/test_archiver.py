@@ -2,7 +2,7 @@ import gzip
 import zlib
 from datetime import UTC, datetime
 
-from wikilag.archiver import (
+from WikipediaLagChecker.archiver import (
     ArchiveWriter,
     event_timestamp,
     partition_path,

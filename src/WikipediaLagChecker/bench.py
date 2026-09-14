@@ -30,12 +30,12 @@ from pathlib import Path
 
 import psutil
 
-from wikilag.config import Config
-from wikilag.events import Edit, EventCounts, deduplicated, filtered
-from wikilag.pipeline import resolve_in_blocks
-from wikilag.propagation import PropagationJoin, PropagationRecord
-from wikilag.replay import replay_partitions
-from wikilag.resolver import ResolutionStore, Resolver
+from WikipediaLagChecker.config import Config
+from WikipediaLagChecker.events import Edit, EventCounts, deduplicated, filtered
+from WikipediaLagChecker.pipeline import resolve_in_blocks
+from WikipediaLagChecker.propagation import PropagationJoin, PropagationRecord
+from WikipediaLagChecker.replay import replay_partitions
+from WikipediaLagChecker.resolver import ResolutionStore, Resolver
 
 
 def parse_partition(task: tuple[str, Config]) -> tuple[list[Edit], EventCounts]:

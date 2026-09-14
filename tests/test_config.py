@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from wikilag.config import load_config
+from WikipediaLagChecker.config import load_config
 
 
 def test_loads_the_repo_default():
@@ -16,5 +16,5 @@ def test_env_var_overrides_the_default(tmp_path, monkeypatch):
         Path("config/default.toml").read_text(encoding="utf-8").replace("21600", "900"),
         encoding="utf-8",
     )
-    monkeypatch.setenv("WIKILAG_CONFIG", str(override))
+    monkeypatch.setenv("WIKIPEDIA_LAG_CHECKER_CONFIG", str(override))
     assert load_config().join.watermark_seconds == 900

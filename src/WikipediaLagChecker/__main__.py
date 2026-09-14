@@ -1,11 +1,11 @@
 """Command line entry point.
 
-python -m wikilag archive --max-events 500
-python -m wikilag stats
-python -m wikilag resolve [--partitions GLOB] [--offline]
-python -m wikilag join
-python -m wikilag pairs sample
-python -m wikilag pairs evaluate
+python -m WikipediaLagChecker archive --max-events 500
+python -m WikipediaLagChecker stats
+python -m WikipediaLagChecker resolve [--partitions GLOB] [--offline]
+python -m WikipediaLagChecker join
+python -m WikipediaLagChecker pairs sample
+python -m WikipediaLagChecker pairs evaluate
 """
 
 from __future__ import annotations
@@ -15,16 +15,16 @@ import sys
 
 import structlog
 
-from wikilag import commands
-from wikilag.archiver import run_archiver
-from wikilag.config import load_config
-from wikilag.logging_setup import configure
+from WikipediaLagChecker import commands
+from WikipediaLagChecker.archiver import run_archiver
+from WikipediaLagChecker.config import load_config
+from WikipediaLagChecker.logging_setup import configure
 
 log = structlog.get_logger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="wikilag")
+    parser = argparse.ArgumentParser(prog="WikipediaLagChecker")
     parser.add_argument("--config", default=None, help="path to a TOML config file")
     parser.add_argument("--log-level", default="INFO")
     sub = parser.add_subparsers(dest="command", required=True)

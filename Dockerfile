@@ -8,5 +8,5 @@ RUN pip install --no-cache-dir .
 COPY config ./config
 VOLUME ["/app/data"]
 
-ENTRYPOINT ["python", "-m", "wikilag"]
+ENTRYPOINT ["python", "-m", "WikipediaLagChecker"]
 CMD ["archive"]
