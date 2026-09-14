@@ -1,7 +1,7 @@
 """Configuration loading.
 
-Every tunable in this project lives in a TOML file. No thresholds, paths,
-wiki lists or watermarks are hardcoded anywhere else in the package.
+Thresholds, paths, wiki lists and watermarks all come from a TOML file
+instead of being hardcoded.
 """
 
 from __future__ import annotations
@@ -124,7 +124,13 @@ def load_config(path: str | Path | None = None) -> Config:
     repo default. Kept in that order so docker-compose can point at a
     different file without touching the image.
     """
-    resolved = Path(path or os.environ.get("WIKILAG_CONFIG") or DEFAULT_CONFIG_PATH)
+    if path:
+        resolved = Path(path)
+    elif os.environ.get("WIKILAG_CONFIG"):
+        resolved = Path(os.environ["WIKILAG_CONFIG"])
+    else:
+        resolved = DEFAULT_CONFIG_PATH
+
     with resolved.open("rb") as handle:
         raw = tomllib.load(handle)
 

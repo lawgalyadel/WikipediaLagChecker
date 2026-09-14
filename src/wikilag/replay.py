@@ -1,9 +1,9 @@
 """Deterministic replay over archived partitions.
 
-Every experiment from day two onward runs through here rather than against
-the live stream. Partitions are read in sorted filename order and lines in
-file order, so the same archive produces the same event sequence on every
-run — which is what makes a before/after measurement mean anything.
+All analysis reads from here instead of the live stream. Partitions are
+read in sorted filename order and lines in file order, so the same archive
+gives the same event sequence on every run. Without that, before/after
+comparisons wouldn't be meaningful.
 """
 
 from __future__ import annotations
@@ -40,12 +40,15 @@ class ReplayStats:
     @property
     def undecodable_rate(self) -> float:
         total = self.events + self.undecodable
-        return self.undecodable / total if total else 0.0
+        if total == 0:
+            return 0.0
+        return self.undecodable / total
 
 
 def partitions(directory: Path) -> list[Path]:
     """Archive partitions in deterministic order."""
-    return sorted(directory.glob("*.jsonl.gz"))
+    files = directory.glob("*.jsonl.gz")
+    return sorted(files)
 
 
 def read_lines(partition: Path, damaged: list[int] | None = None) -> Iterator[str]:
@@ -61,18 +64,26 @@ def read_lines(partition: Path, damaged: list[int] | None = None) -> Iterator[st
     """
     data = partition.read_bytes()
     start = 0
+
     while start < len(data):
+        # _read_member yields the lines of one member, and its return value
+        # is where that member ended (None if it was damaged). `yield from`
+        # passes the lines straight through and gives us the return value.
         end = yield from _read_member(data, start)
+
         if end is not None:
             start = end
             continue
+
         log.warning("partition.damaged_member", partition=partition.name, at=start)
         if damaged is not None:
             damaged.append(start)
-        resync = data.find(GZIP_MAGIC, start + 1)
-        if resync == -1:
+
+        # Skip ahead to the next gzip header, if there is one.
+        next_header = data.find(GZIP_MAGIC, start + 1)
+        if next_header == -1:
             return
-        start = resync
+        start = next_header
 
 
 def _read_member(data: bytes, start: int) -> Iterator[str]:
@@ -89,6 +100,7 @@ def _read_member(data: bytes, start: int) -> Iterator[str]:
     while position < len(data) and not decoder.eof:
         chunk = data[position : position + io.DEFAULT_BUFFER_SIZE]
         checkpoint = decoder.copy()
+
         try:
             output = decoder.decompress(chunk)
         except zlib.error:
@@ -98,25 +110,41 @@ def _read_member(data: bytes, start: int) -> Iterator[str]:
             decoder = checkpoint
             output = b""
             for index in range(len(chunk)):
+                single_byte = chunk[index : index + 1]
                 try:
-                    output += decoder.decompress(chunk[index : index + 1])
+                    output += decoder.decompress(single_byte)
                 except zlib.error:
                     break
-            yield from _complete_lines(pending + output)
-            return None
-        position += len(chunk) - len(decoder.unused_data)
-        pending += output
-        *complete, pending = pending.split(b"\n")
-        yield from _complete_lines(b"\n".join(complete))
 
-    yield from _complete_lines(pending)
-    return position if decoder.eof else None
+            for line in _complete_lines(pending + output):
+                yield line
+            return None
+
+        # Only count the bytes the decoder actually used for this member.
+        used_bytes = len(chunk) - len(decoder.unused_data)
+        position += used_bytes
+
+        # Everything up to the last newline is complete; keep the rest.
+        pending += output
+        pieces = pending.split(b"\n")
+        pending = pieces[-1]
+        complete_block = b"\n".join(pieces[:-1])
+        for line in _complete_lines(complete_block):
+            yield line
+
+    for line in _complete_lines(pending):
+        yield line
+
+    if decoder.eof:
+        return position
+    return None
 
 
 def _complete_lines(block: bytes) -> Iterator[str]:
     for raw in block.split(b"\n"):
         if raw.strip():
-            yield raw.decode("utf-8", errors="replace").strip()
+            text = raw.decode("utf-8", errors="replace")
+            yield text.strip()
 
 
 def replay(directory: Path) -> Iterator[dict]:
@@ -126,7 +154,8 @@ def replay(directory: Path) -> Iterator[dict]:
     line is the normal result of killing the archiver mid-write, and one
     bad line should not make a five-day archive unreadable.
     """
-    yield from replay_partitions(partitions(directory))
+    all_partitions = partitions(directory)
+    yield from replay_partitions(all_partitions)
 
 
 def replay_partitions(paths: Iterable[Path]) -> Iterator[dict]:
@@ -134,24 +163,27 @@ def replay_partitions(paths: Iterable[Path]) -> Iterator[dict]:
     for partition in paths:
         for line in read_lines(partition):
             try:
-                yield json.loads(line)
+                event = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            yield event
 
 
 def describe(directory: Path, files: list[Path] | None = None) -> ReplayStats:
     """Count what is in the archive, including what failed to decode.
 
-    The undecodable count feeds the drop table in the README. Reporting
-    zero is fine; not knowing is not. Coverage gaps — whole minutes with no
-    event, from outages or a sleeping laptop — are found from event time,
-    because a gap silently shortens every propagation window across it.
+    The undecodable count goes into the Data table in the README. Coverage
+    gaps (whole minutes with no event, e.g. from an outage or the laptop
+    sleeping) are found from event time, since a gap shortens any
+    propagation window that spans it.
     """
     events = 0
     undecodable = 0
     damaged: list[int] = []
     minutes: set[datetime] = set()
-    files = partitions(directory) if files is None else files
+
+    if files is None:
+        files = partitions(directory)
 
     for partition in files:
         for line in read_lines(partition, damaged):
@@ -160,42 +192,66 @@ def describe(directory: Path, files: list[Path] | None = None) -> ReplayStats:
             except json.JSONDecodeError:
                 undecodable += 1
                 continue
+
             events += 1
             minute = _event_minute(event)
             if minute is not None:
                 minutes.add(minute)
 
-    first = min(minutes) if minutes else None
-    last = max(minutes) if minutes else None
+    first_event = None
+    last_event = None
+    if len(minutes) > 0:
+        first_event = min(minutes).isoformat()
+        last_event = max(minutes).isoformat()
+
+    sorted_minutes = sorted(minutes)
+    gaps = _gaps(sorted_minutes)
+
     return ReplayStats(
         partitions=len(files),
         events=events,
         undecodable=undecodable,
         damaged_members=len(damaged),
-        first_event=first.isoformat() if first else None,
-        last_event=last.isoformat() if last else None,
-        gaps=_gaps(sorted(minutes)),
+        first_event=first_event,
+        last_event=last_event,
+        gaps=gaps,
     )
 
 
 def _event_minute(event: dict) -> datetime | None:
-    dt = (event.get("meta") or {}).get("dt") if isinstance(event, dict) else None
+    if not isinstance(event, dict):
+        return None
+
+    meta = event.get("meta")
+    if not meta:
+        return None
+
+    dt = meta.get("dt")
     if not isinstance(dt, str):
         return None
+
     try:
         parsed = datetime.fromisoformat(dt.replace("Z", "+00:00"))
     except ValueError:
         return None
+
+    # Round down to the start of the minute.
     return parsed.replace(second=0, microsecond=0)
 
 
 def _gaps(ordered: list[datetime]) -> list[tuple[str, str, int]]:
-    step = timedelta(minutes=1)
+    one_minute = timedelta(minutes=1)
     gaps = []
-    for previous, current in zip(ordered, ordered[1:], strict=False):
-        if current - previous > step:
-            start, end = previous + step, current - step
-            gaps.append(
-                (start.isoformat(), end.isoformat(), (current - previous) // step - 1)
-            )
+
+    for index in range(1, len(ordered)):
+        previous = ordered[index - 1]
+        current = ordered[index]
+
+        # Consecutive minutes are exactly one minute apart; more means a gap.
+        if current - previous > one_minute:
+            gap_start = previous + one_minute
+            gap_end = current - one_minute
+            missing_minutes = (current - previous) // one_minute - 1
+            gaps.append((gap_start.isoformat(), gap_end.isoformat(), missing_minutes))
+
     return gaps

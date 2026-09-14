@@ -66,7 +66,7 @@ def test_durations_are_human_readable():
     assert duration(45) == "45s"
     assert duration(685) == "11m 25s"
     assert duration(21600) == "6h 00m"
-    assert duration(None) == "—"
+    assert duration(None) == "-"
 
 
 def test_update_replaces_only_between_markers(tmp_path):

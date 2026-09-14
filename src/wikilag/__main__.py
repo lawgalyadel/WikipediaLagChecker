@@ -58,13 +58,13 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--force", action="store_true", help="replace existing reviews")
     failures_sub.add_parser("summarise", help="count confirmed failures by category")
 
-    for name, help_text in (
-        ("bench", "throughput and peak RSS at each worker count"),
-        ("profile", "cProfile of a single-worker replay"),
-    ):
-        command = sub.add_parser(name, help=help_text)
-        command.add_argument("--partitions", default=None, help="glob within the archive")
-        command.add_argument("--label", default="current", help="suffix for the result")
+    bench = sub.add_parser("bench", help="throughput and peak RSS at each worker count")
+    bench.add_argument("--partitions", default=None, help="glob within the archive")
+    bench.add_argument("--label", default="current", help="suffix for the result")
+
+    profile = sub.add_parser("profile", help="cProfile of a single-worker replay")
+    profile.add_argument("--partitions", default=None, help="glob within the archive")
+    profile.add_argument("--label", default="current", help="suffix for the result")
 
     sub.add_parser("report", help="render the README results from results/")
 

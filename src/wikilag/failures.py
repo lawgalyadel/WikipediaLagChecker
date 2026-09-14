@@ -66,21 +66,31 @@ class EditEvidence:
 
 def edit_key(record: dict, side: str) -> tuple[str, str, int]:
     """(wiki, title, edit time) of one side of a propagation record."""
-    return (
-        record[f"{side}_wiki"],
-        record[f"{side}_title"],
-        int(record[f"{side}_timestamp"]),
-    )
+    wiki = record[f"{side}_wiki"]
+    title = record[f"{side}_title"]
+    edit_time = int(record[f"{side}_timestamp"])
+    return (wiki, title, edit_time)
 
 
 def read_records(path: Path) -> list[dict]:
     with gzip.open(path, "rt", encoding="utf-8", newline="") as handle:
-        return list(csv.DictReader(handle))
+        reader = csv.DictReader(handle)
+        return list(reader)
 
 
 def sample_records(records: list[dict], size: int, seed: int) -> list[dict]:
-    ordered = sorted(records, key=lambda r: (r["qid"], int(r["rank"])))
-    return random.Random(seed).sample(ordered, min(size, len(ordered)))
+    # Sort first so the sample doesn't depend on the order records were written.
+    def by_item_and_rank(record: dict) -> tuple[str, int]:
+        return (record["qid"], int(record["rank"]))
+
+    ordered = sorted(records, key=by_item_and_rank)
+
+    sample_size = size
+    if len(ordered) < sample_size:
+        sample_size = len(ordered)
+
+    rng = random.Random(seed)
+    return rng.sample(ordered, sample_size)
 
 
 def evidence_from_events(
@@ -88,31 +98,53 @@ def evidence_from_events(
 ) -> dict[tuple[str, str, int], EditEvidence]:
     """Evidence for edits keyed by (wiki, title, edit time)."""
     found: dict[tuple[str, str, int], EditEvidence] = {}
+
     for event in events:
         try:
             key = (event["wiki"], event["title"], int(event["timestamp"]))
         except (KeyError, TypeError, ValueError):
             continue
-        if key not in wanted or key in found:
+
+        if key not in wanted:
             continue
-        length = event.get("length") or {}
-        old, new = length.get("old"), length.get("new")
+        if key in found:
+            continue
+
+        # Size change in bytes, if the event has it.
+        length = event.get("length")
+        if not length:
+            length = {}
+        old_length = length.get("old")
+        new_length = length.get("new")
+
+        bytes_changed = None
+        if new_length is not None:
+            if old_length:
+                bytes_changed = new_length - old_length
+            else:
+                bytes_changed = new_length
+
+        # How far the stream's timestamp is from the edit time.
         skew = None
-        dt = (event.get("meta") or {}).get("dt")
+        meta = event.get("meta")
+        if not meta:
+            meta = {}
+        dt = meta.get("dt")
         if isinstance(dt, str):
             try:
-                skew = (
-                    datetime.fromisoformat(dt.replace("Z", "+00:00")).timestamp() - key[2]
-                )
+                stream_time = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+                skew = stream_time.timestamp() - key[2]
             except ValueError:
                 skew = None
+
         found[key] = EditEvidence(
             user=event.get("user", ""),
             comment=event.get("comment", ""),
-            bytes_changed=None if new is None else new - (old or 0),
+            bytes_changed=bytes_changed,
             bot=bool(event.get("bot", False)),
             stream_skew_seconds=skew,
         )
+
     return found
 
 
@@ -126,32 +158,63 @@ def suggest(
     rules = config.failures
     sides = [("leader", leader), ("follower", follower)]
 
+    # 1. A user that looks like a bot but wasn't flagged as one.
     bot_pattern = re.compile(rules.bot_user_pattern)
     for side, evidence in sides:
-        if evidence and not evidence.bot and bot_pattern.search(evidence.user):
+        if evidence is None:
+            continue
+        if not evidence.bot and bot_pattern.search(evidence.user):
             return "bot_slipped_filter", f"{side} user {evidence.user!r}"
 
-    reverts = [re.compile(pattern) for pattern in rules.revert_comment_patterns]
-    for side, evidence in sides:
-        if evidence and any(p.search(evidence.comment) for p in reverts):
-            return "revert_or_vandalism", f"{side} comment {evidence.comment[:80]!r}"
+    # 2. A revert on either side.
+    revert_patterns = []
+    for pattern in rules.revert_comment_patterns:
+        revert_patterns.append(re.compile(pattern))
 
+    for side, evidence in sides:
+        if evidence is None:
+            continue
+        for revert_pattern in revert_patterns:
+            if revert_pattern.search(evidence.comment):
+                short_comment = evidence.comment[:80]
+                return "revert_or_vandalism", f"{side} comment {short_comment!r}"
+
+    # 3. A disambiguation page.
     for side in ("leader", "follower"):
         title = record[f"{side}_title"]
-        if any(marker in title for marker in rules.disambiguation_markers):
-            return "disambiguation", f"{side} title {title!r}"
+        for marker in rules.disambiguation_markers:
+            if marker in title:
+                return "disambiguation", f"{side} title {title!r}"
 
-    sizes = [e.bytes_changed for _, e in sides if e and e.bytes_changed is not None]
-    if len(sizes) == 2 and all(abs(size) <= rules.trivial_bytes for size in sizes):
-        return "trivial_maintenance", f"size changes {sizes[0]:+d} / {sizes[1]:+d} bytes"
+    # 4. Both edits were tiny.
+    sizes = []
+    for _, evidence in sides:
+        if evidence is not None and evidence.bytes_changed is not None:
+            sizes.append(evidence.bytes_changed)
 
+    if len(sizes) == 2:
+        both_tiny = True
+        for size in sizes:
+            if abs(size) > rules.trivial_bytes:
+                both_tiny = False
+        if both_tiny:
+            return (
+                "trivial_maintenance",
+                f"size changes {sizes[0]:+d} / {sizes[1]:+d} bytes",
+            )
+
+    # 5. The stream delivered an edit later than the reorder buffer allows.
     for side, evidence in sides:
-        skew = evidence.stream_skew_seconds if evidence else None
+        if evidence is None:
+            continue
+        skew = evidence.stream_skew_seconds
         if skew is not None and abs(skew) > config.join.reorder_seconds:
             return "out_of_order", f"{side} stream skew {skew:.0f}s"
 
-    if leader and follower and leader.user and leader.user == follower.user:
-        return "same_editor", f"user {leader.user!r} made both edits"
+    # 6. The same person made both edits.
+    if leader is not None and follower is not None:
+        if leader.user and leader.user == follower.user:
+            return "same_editor", f"user {leader.user!r} made both edits"
 
     return "needs_review", ""
 
@@ -162,26 +225,46 @@ def build_sheet(
     config: Config,
 ) -> list[dict]:
     rows = []
-    for index, record in enumerate(sampled, 1):
+
+    for index in range(len(sampled)):
+        record = sampled[index]
         leader = evidence.get(edit_key(record, "leader"))
         follower = evidence.get(edit_key(record, "follower"))
         category, why = suggest(record, leader, follower, config)
+
+        # Leave evidence columns empty when the edit wasn't found in the archive.
+        leader_user = ""
+        leader_comment = ""
+        leader_bytes = ""
+        if leader is not None:
+            leader_user = leader.user
+            leader_comment = leader.comment
+            leader_bytes = leader.bytes_changed
+
+        follower_user = record["follower_user"]
+        follower_comment = ""
+        follower_bytes = ""
+        if follower is not None:
+            follower_user = follower.user
+            follower_comment = follower.comment
+            follower_bytes = follower.bytes_changed
+
         rows.append(
             {
-                "case_id": f"f{index:03d}",
+                "case_id": f"f{index + 1:03d}",
                 "qid": record["qid"],
                 "rank": record["rank"],
                 "lag_seconds": record["lag_seconds"],
                 "leader_wiki": record["leader_wiki"],
                 "leader_title": record["leader_title"],
-                "leader_user": leader.user if leader else "",
-                "leader_comment": leader.comment if leader else "",
-                "leader_bytes": "" if not leader else leader.bytes_changed,
+                "leader_user": leader_user,
+                "leader_comment": leader_comment,
+                "leader_bytes": leader_bytes,
                 "follower_wiki": record["follower_wiki"],
                 "follower_title": record["follower_title"],
-                "follower_user": follower.user if follower else record["follower_user"],
-                "follower_comment": follower.comment if follower else "",
-                "follower_bytes": "" if not follower else follower.bytes_changed,
+                "follower_user": follower_user,
+                "follower_comment": follower_comment,
+                "follower_bytes": follower_bytes,
                 "suggested_category": category,
                 "evidence": why,
                 "confirmed_wrong": "",
@@ -189,6 +272,7 @@ def build_sheet(
                 "note": "",
             }
         )
+
     return rows
 
 
@@ -205,28 +289,48 @@ def summarise_sheet(path: Path) -> dict:
     with path.open(encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
 
-    reviewed = [row for row in rows if parse_label(row["confirmed_wrong"]) is not None]
-    wrong = [row for row in reviewed if parse_label(row["confirmed_wrong"])]
-    by_category: dict[str, list[str]] = {}
-    for row in wrong:
-        category = row["category"].strip() or row["suggested_category"]
-        by_category.setdefault(category, []).append(row["case_id"])
+    reviewed = []
+    for row in rows:
+        if parse_label(row["confirmed_wrong"]) is not None:
+            reviewed.append(row)
 
-    agreed = sum(
-        1
-        for row in wrong
-        if (row["category"].strip() or row["suggested_category"])
-        == row["suggested_category"]
-    )
+    wrong = []
+    for row in reviewed:
+        if parse_label(row["confirmed_wrong"]):
+            wrong.append(row)
+
+    # The reviewer's category wins; otherwise the suggestion stands.
+    by_category: dict[str, list[str]] = {}
+    agreed = 0
+    for row in wrong:
+        category = row["category"].strip()
+        if category == "":
+            category = row["suggested_category"]
+
+        if category not in by_category:
+            by_category[category] = []
+        by_category[category].append(row["case_id"])
+
+        if category == row["suggested_category"]:
+            agreed += 1
+
+    def most_cases_first(item: tuple[str, list[str]]) -> tuple[int, str]:
+        name = item[0]
+        case_ids = item[1]
+        return (-len(case_ids), name)
+
+    categories = []
+    for name, case_ids in sorted(by_category.items(), key=most_cases_first):
+        categories.append({"category": name, "count": len(case_ids), "cases": case_ids})
+
+    heuristic_agreement = None
+    if len(wrong) > 0:
+        heuristic_agreement = round(agreed / len(wrong), 4)
+
     return {
         "candidates": len(rows),
         "reviewed": len(reviewed),
         "confirmed_wrong": len(wrong),
-        "categories": [
-            {"category": name, "count": len(ids), "cases": ids}
-            for name, ids in sorted(
-                by_category.items(), key=lambda kv: (-len(kv[1]), kv[0])
-            )
-        ],
-        "heuristic_agreement": round(agreed / len(wrong), 4) if wrong else None,
+        "categories": categories,
+        "heuristic_agreement": heuristic_agreement,
     }

@@ -1,4 +1,4 @@
-# Every tunable in the project. Nothing here is duplicated in code.
+# All project settings.
 
 [stream]
 url = "https://stream.wikimedia.org/v2/stream/recentchange"
@@ -15,9 +15,8 @@ offset_file = "data/offset.txt"
 flush_every_events = 100
 
 [filters]
-# Deliberately a mixed set rather than all-European, so the interesting
-# asymmetries (does an event reach English before or after the language
-# local to where it happened) are visible in the results.
+# Languages from several regions, not just Europe, to see whether news
+# reaches English before or after the local language.
 wikis = [
   "enwiki", "dewiki", "frwiki", "eswiki", "ptwiki", "itwiki",
   "nlwiki", "plwiki", "ruwiki", "svwiki", "trwiki", "arwiki",
@@ -97,5 +96,5 @@ disambiguation_markers = [
 [baseline]
 sample_size = 200
 sample_seed = 20260913
-# Hand labels are a research artefact, so they live in the repo, not data/.
+# Hand labels are committed, so they go in labels/ rather than data/.
 labels_path = "labels/pairs.csv"

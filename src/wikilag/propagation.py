@@ -10,14 +10,14 @@ windows are remembered only for the late horizon (long enough to count
 follow-ups that missed the window), and the reorder buffer holds at most
 `reorder_seconds` of edits.
 
-Definitions that shape the numbers, stated once:
+Definitions that affect the numbers:
 
 - Time is edit time (`timestamp`), not arrival time. The clock is the
   largest edit time seen, so replay speed has no effect on results.
 - Bot edits keep a window open and count toward the bot share, but never
   lead or follow: propagation is measured over human edits only.
 - A new human edition touching an item after its window closed is a late
-  follow-up. It does not reopen the window, which would crown it leader.
+  follow-up. It doesn't reopen the window, or it would become the leader.
 - Windows opening within `warmup_seconds` of the first archived edit may
   have had edits before capture began. They emit nothing and are excluded
   from rates, but are counted.
@@ -95,11 +95,13 @@ class JoinStats:
     @property
     def bot_share_of_cross_edition_edits(self) -> float | None:
         total = self.cross_edition_human_edits + self.cross_edition_bot_edits
-        return self.cross_edition_bot_edits / total if total else None
+        if total == 0:
+            return None
+        return self.cross_edition_bot_edits / total
 
     @property
     def late_followup_rate(self) -> float | None:
-        if not self.closed_with_human_edit:
+        if self.closed_with_human_edit == 0:
             return None
         return self.late_followup_items / self.closed_with_human_edit
 
@@ -115,48 +117,71 @@ class PropagationJoin:
         self._on_record = on_record
         self._on_close = on_close
         self._emit_ranks = set(config.emit_ranks)
+
+        # Reorder buffer: a heap of (edit time, sequence number, edit, qid).
         self._buffer: list[tuple[int, int, Edit, str]] = []
         self._sequence = 0
+
         self._clock: int | None = None  # largest edit time pushed
         self._processed_upto: int | None = None  # largest edit time processed
         self._first_timestamp: int | None = None
+
+        # Both dicts keep insertion order, so the first entry is the oldest.
         self._open: OrderedDict[str, ItemWindow] = OrderedDict()
         self._closed: OrderedDict[str, ClosedWindow] = OrderedDict()
-        self.stats = JoinStats(reached_rank=dict.fromkeys(config.emit_ranks, 0))
+
+        reached_rank = {}
+        for rank in config.emit_ranks:
+            reached_rank[rank] = 0
+        self.stats = JoinStats(reached_rank=reached_rank)
 
     def push(self, edit: Edit, qid: str | None) -> None:
         self.stats.edits_in += 1
+
         if qid is None:
             self.stats.without_item += 1
             return
+
         # The earliest edit time, not the first to arrive: arrival order is
         # exactly what the reorder buffer does not trust.
         if self._first_timestamp is None or edit.timestamp < self._first_timestamp:
             self._first_timestamp = edit.timestamp
-        self._clock = (
-            edit.timestamp if self._clock is None else max(self._clock, edit.timestamp)
-        )
-        # Sequence breaks timestamp ties by arrival, keeping the order total.
-        heapq.heappush(self._buffer, (edit.timestamp, self._sequence, edit, qid))
+
+        if self._clock is None or edit.timestamp > self._clock:
+            self._clock = edit.timestamp
+
+        # The sequence number breaks ties between edits with the same
+        # timestamp, so they come out in the order they arrived.
+        entry = (edit.timestamp, self._sequence, edit, qid)
+        heapq.heappush(self._buffer, entry)
         self._sequence += 1
-        self.stats.peak_reorder_buffer = max(
-            self.stats.peak_reorder_buffer, len(self._buffer)
-        )
+
+        if len(self._buffer) > self.stats.peak_reorder_buffer:
+            self.stats.peak_reorder_buffer = len(self._buffer)
+
+        # Anything at least `reorder_seconds` older than the clock is safe to
+        # process now: nothing earlier should still be on its way.
         release_before = self._clock - self._config.reorder_seconds
-        while self._buffer and self._buffer[0][0] <= release_before:
-            _, _, ready, ready_qid = heapq.heappop(self._buffer)
-            self._process(ready, ready_qid)
+        while len(self._buffer) > 0 and self._buffer[0][0] <= release_before:
+            oldest = heapq.heappop(self._buffer)
+            ready_edit = oldest[2]
+            ready_qid = oldest[3]
+            self._process(ready_edit, ready_qid)
 
     def finish(self) -> None:
         """Drain the reorder buffer. Windows still open are counted, not closed:
         their follow-ups may simply not have happened yet."""
-        while self._buffer:
-            _, _, ready, ready_qid = heapq.heappop(self._buffer)
-            self._process(ready, ready_qid)
+        while len(self._buffer) > 0:
+            oldest = heapq.heappop(self._buffer)
+            ready_edit = oldest[2]
+            ready_qid = oldest[3]
+            self._process(ready_edit, ready_qid)
+
         self.stats.windows_open_at_end = len(self._open)
 
     def _process(self, edit: Edit, qid: str) -> None:
         now = edit.timestamp
+
         if self._processed_upto is not None and now < self._processed_upto:
             self.stats.out_of_order += 1
         else:
@@ -168,9 +193,12 @@ class PropagationJoin:
         else:
             self.stats.human_edits += 1
 
+        # If this item's window already closed, the edit can only be a late
+        # follow-up. It never opens a new window.
         closed = self._closed.get(qid)
         if closed is not None:
-            if not edit.bot and edit.wiki not in closed.editions:
+            is_new_human_edition = not edit.bot and edit.wiki not in closed.editions
+            if is_new_human_edition:
                 self.stats.late_followup_edits += 1
                 if not closed.late:
                     closed.late = True
@@ -182,80 +210,118 @@ class PropagationJoin:
             window = self._open_window(qid, now)
 
         window.all_editions.add(edit.wiki)
+
         if edit.bot:
             window.bot_edits += 1
             return
+
         window.human_edits += 1
+
+        # Only the first human edit from each edition counts.
         if edit.wiki in window.human_editions:
             return
 
         window.human_editions[edit.wiki] = (now, edit.title)
         rank = len(window.human_editions)
-        if rank in self._emit_ranks and not window.in_warmup:
-            leader_wiki, (leader_time, leader_title) = next(
-                iter(window.human_editions.items())
-            )
-            self._on_record(
-                PropagationRecord(
-                    qid=qid,
-                    rank=rank,
-                    leader_wiki=leader_wiki,
-                    leader_title=leader_title,
-                    leader_timestamp=leader_time,
-                    follower_wiki=edit.wiki,
-                    follower_title=edit.title,
-                    follower_timestamp=now,
-                    follower_user=edit.user,
-                )
-            )
+
+        if rank not in self._emit_ranks:
+            return
+        if window.in_warmup:
+            return
+
+        # The leader is the first edition that was added to the window.
+        leader_wiki = None
+        for wiki in window.human_editions:
+            leader_wiki = wiki
+            break
+        leader_time, leader_title = window.human_editions[leader_wiki]
+
+        record = PropagationRecord(
+            qid=qid,
+            rank=rank,
+            leader_wiki=leader_wiki,
+            leader_title=leader_title,
+            leader_timestamp=leader_time,
+            follower_wiki=edit.wiki,
+            follower_title=edit.title,
+            follower_timestamp=now,
+            follower_user=edit.user,
+        )
+        self._on_record(record)
 
     def _open_window(self, qid: str, now: int) -> ItemWindow:
         assert self._first_timestamp is not None
-        in_warmup = now < self._first_timestamp + self._config.warmup_seconds
+
+        warmup_ends_at = self._first_timestamp + self._config.warmup_seconds
+        in_warmup = now < warmup_ends_at
+
         window = ItemWindow(qid=qid, opened_at=now, in_warmup=in_warmup)
         self._open[qid] = window
+
         self.stats.windows_opened += 1
-        self.stats.warmup_windows += in_warmup
-        self.stats.peak_open_windows = max(self.stats.peak_open_windows, len(self._open))
+        if in_warmup:
+            self.stats.warmup_windows += 1
+        if len(self._open) > self.stats.peak_open_windows:
+            self.stats.peak_open_windows = len(self._open)
+
         return window
 
     def _expire(self, now: int) -> None:
+        # Close open windows that have been open longer than the watermark.
+        # The oldest window is always first, so stop at the first one that
+        # is still inside the watermark.
         closes_before = now - self._config.watermark_seconds
-        while self._open:
-            qid, window = next(iter(self._open.items()))
-            if window.opened_at > closes_before:
+        while len(self._open) > 0:
+            oldest_qid = None
+            for qid in self._open:
+                oldest_qid = qid
                 break
-            del self._open[qid]
-            self._close(window, now)
+            oldest_window = self._open[oldest_qid]
 
-        forget_before = now - self._config.late_horizon_seconds
-        while self._closed:
-            qid, closed = next(iter(self._closed.items()))
-            if closed.closed_at > forget_before:
+            if oldest_window.opened_at > closes_before:
                 break
-            del self._closed[qid]
+
+            del self._open[oldest_qid]
+            self._close(oldest_window, now)
+
+        # Forget closed windows once they're past the late horizon.
+        forget_before = now - self._config.late_horizon_seconds
+        while len(self._closed) > 0:
+            oldest_qid = None
+            for qid in self._closed:
+                oldest_qid = qid
+                break
+            oldest_closed = self._closed[oldest_qid]
+
+            if oldest_closed.closed_at > forget_before:
+                break
+
+            del self._closed[oldest_qid]
 
     def _close(self, window: ItemWindow, now: int) -> None:
         stats = self.stats
         stats.windows_closed += 1
+
         # Late follow-ups are new *human* editions, matching what leads.
-        self._closed[window.qid] = ClosedWindow(
-            closed_at=now, editions=frozenset(window.human_editions)
-        )
-        stats.peak_closed_remembered = max(
-            stats.peak_closed_remembered, len(self._closed)
-        )
+        human_wikis = frozenset(window.human_editions)
+        self._closed[window.qid] = ClosedWindow(closed_at=now, editions=human_wikis)
+        if len(self._closed) > stats.peak_closed_remembered:
+            stats.peak_closed_remembered = len(self._closed)
 
         if len(window.all_editions) >= 2:
             stats.cross_edition_items += 1
             stats.cross_edition_human_edits += window.human_edits
             stats.cross_edition_bot_edits += window.bot_edits
 
-        if window.in_warmup or not window.human_editions:
+        if window.in_warmup:
             return
+        if len(window.human_editions) == 0:
+            return
+
         stats.closed_with_human_edit += 1
         for rank in stats.reached_rank:
             if len(window.human_editions) >= rank:
                 stats.reached_rank[rank] += 1
+
         if self._on_close is not None:
             self._on_close(window)

@@ -24,33 +24,52 @@ def select_partitions(config: Config, pattern: str | None) -> list[Path]:
     """Partitions to process, in deterministic order. `pattern` is a glob."""
     if pattern is None:
         return partitions(config.archive.directory)
-    return sorted(config.archive.directory.glob(pattern))
+
+    matching = config.archive.directory.glob(pattern)
+    return sorted(matching)
 
 
 def resolved_edits(
     paths: Iterable[Path], config: Config, resolver: Resolver, counts: EventCounts
 ) -> Iterator[tuple[Edit, str | None]]:
     """Edits paired with their Wikidata item, resolved a block at a time."""
-    return resolve_in_blocks(
-        edits(replay_partitions(paths), config, counts), config, resolver
-    )
+    raw_events = replay_partitions(paths)
+    article_edits = edits(raw_events, config, counts)
+    return resolve_in_blocks(article_edits, config, resolver)
 
 
 def resolve_in_blocks(
     stream: Iterable[Edit], config: Config, resolver: Resolver
 ) -> Iterator[tuple[Edit, str | None]]:
     block: list[Edit] = []
+
     for edit in stream:
         block.append(edit)
+
         if len(block) >= config.wikidata.block_events:
-            yield from _resolve(block, resolver)
+            for pair in _resolve(block, resolver):
+                yield pair
             block = []
-    if block:
-        yield from _resolve(block, resolver)
+
+    # Whatever is left over at the end is a smaller final block.
+    if len(block) > 0:
+        for pair in _resolve(block, resolver):
+            yield pair
 
 
-def _resolve(block: list[Edit], resolver: Resolver) -> Iterator[tuple[Edit, str | None]]:
-    return zip(block, resolver.resolve_block([e.key for e in block]), strict=True)
+def _resolve(block: list[Edit], resolver: Resolver) -> list[tuple[Edit, str | None]]:
+    keys = []
+    for edit in block:
+        keys.append(edit.key)
+
+    qids = resolver.resolve_block(keys)
+    if len(qids) != len(block):
+        raise ValueError("resolver returned a different number of results than keys")
+
+    pairs = []
+    for index in range(len(block)):
+        pairs.append((block[index], qids[index]))
+    return pairs
 
 
 def counts_summary(counts: EventCounts) -> dict:
@@ -62,6 +81,12 @@ def write_result(config: Config, name: str, payload: dict) -> Path:
     directory = config.results.directory
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{name}.json"
-    document = {"generated_at": datetime.now(UTC).isoformat(), **payload}
-    path.write_text(json.dumps(document, indent=2, sort_keys=True, ensure_ascii=False))
+
+    document = {}
+    document["generated_at"] = datetime.now(UTC).isoformat()
+    for key, value in payload.items():
+        document[key] = value
+
+    text = json.dumps(document, indent=2, sort_keys=True, ensure_ascii=False)
+    path.write_text(text)
     return path

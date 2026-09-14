@@ -1,12 +1,10 @@
 """Raw event archiver.
 
-This runs from day one and keeps running while the rest of the project is
-built. Two responsibilities, both boring on purpose:
+Kept as simple as possible. It does two things:
 
 1. Write every raw event to disk, partitioned by hour, gzipped. Nothing is
-   parsed or filtered here beyond a wiki whitelist. Analysis happens later
-   against the archive, never against the live stream, so every experiment
-   is reproducible.
+   parsed or filtered here beyond a wiki whitelist. Analysis runs against
+   the archive, not the live stream, so results can be reproduced.
 2. Persist the last event id so a dropped connection resumes where it left
    off instead of leaving a hole in the data.
 """
@@ -35,7 +33,8 @@ def partition_path(directory: Path, fmt: str, when: datetime) -> Path:
     Partitions are keyed on the event's own timestamp, not wall clock, so
     a replayed or backfilled event lands in the hour it belongs to.
     """
-    return directory / f"{when.strftime(fmt)}.jsonl.gz"
+    file_name = when.strftime(fmt) + ".jsonl.gz"
+    return directory / file_name
 
 
 class ArchiveWriter:
@@ -55,6 +54,7 @@ class ArchiveWriter:
         path = partition_path(self._directory, self._format, when)
         key = path.name
 
+        # A new hour means a new file, so close the old one first.
         if key != self._current_key:
             self.close()
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -63,7 +63,8 @@ class ArchiveWriter:
             log.info("partition.rotated", partition=key)
 
         assert self._handle is not None
-        self._handle.write(payload.rstrip("\n") + "\n")
+        line = payload.rstrip("\n") + "\n"
+        self._handle.write(line)
         return path
 
     def flush(self) -> None:
@@ -92,8 +93,11 @@ def read_offset(offset_file: Path) -> str | None:
     """Last event id we durably archived, or None for a cold start."""
     if not offset_file.exists():
         return None
+
     content = offset_file.read_text(encoding="utf-8").strip()
-    return content or None
+    if content == "":
+        return None
+    return content
 
 
 def write_offset(offset_file: Path, event_id: str) -> None:
@@ -112,15 +116,20 @@ def event_timestamp(event: dict) -> datetime:
     """Event time from the payload, falling back to now.
 
     The feed carries `meta.dt` as an ISO timestamp. Anything malformed
-    falls back to wall clock and is counted, not dropped — an unparseable
-    timestamp is a data-quality finding, not a reason to lose the record.
+    falls back to wall clock and gets logged. A bad timestamp isn't a good
+    reason to throw the event away.
     """
-    dt = event.get("meta", {}).get("dt")
+    meta = event.get("meta", {})
+    dt = meta.get("dt")
+
     if isinstance(dt, str):
+        # Swap the "Z" suffix for an explicit UTC offset.
+        iso_text = dt.replace("Z", "+00:00")
         try:
-            return datetime.fromisoformat(dt.replace("Z", "+00:00"))
+            return datetime.fromisoformat(iso_text)
         except ValueError:
             log.warning("timestamp.unparseable", value=dt)
+
     return datetime.now(UTC)
 
 
@@ -133,7 +142,9 @@ def should_keep(event: dict, config: Config) -> bool:
     """
     if event.get("wiki") not in config.filters.wikis:
         return False
-    return event.get("namespace") in config.filters.namespaces
+    if event.get("namespace") not in config.filters.namespaces:
+        return False
+    return True
 
 
 def stream_messages(config: Config, resume_from: str | None) -> Iterator[SSEMessage]:
@@ -147,7 +158,20 @@ def stream_messages(config: Config, resume_from: str | None) -> Iterator[SSEMess
         "GET", config.stream.url, headers=headers, timeout=timeout
     ) as response:
         response.raise_for_status()
+        # Pass every parsed message straight on to the caller.
         yield from parse_sse(response.iter_lines())
+
+
+def save_progress(writer: ArchiveWriter, config: Config, offset: str | None) -> None:
+    """Flush the partition file, then save the offset.
+
+    The order matters: the offset is only written once the data behind it
+    is on disk. A hard kill then re-archives up to one flush interval
+    (at-least-once) rather than leaving a gap.
+    """
+    writer.flush()
+    if offset:
+        write_offset(config.archive.offset_file, offset)
 
 
 def run_archiver(config: Config, max_events: int | None = None) -> int:
@@ -182,28 +206,25 @@ def run_archiver(config: Config, max_events: int | None = None) -> int:
                         offset = message.id
 
                     archived += 1
+                    # A successful event means the connection is healthy again.
                     backoff = config.stream.reconnect_initial_seconds
 
-                    # Offset is persisted only after the data behind it is
-                    # on disk. A hard kill re-archives up to one flush
-                    # interval (at-least-once) rather than leaving a gap.
                     if archived % config.archive.flush_every_events == 0:
-                        writer.flush()
-                        if offset:
-                            write_offset(config.archive.offset_file, offset)
+                        save_progress(writer, config, offset)
 
                     if archived % 1000 == 0:
                         log.info("archive.progress", archived=archived)
+
                     if max_events is not None and archived >= max_events:
-                        writer.flush()
-                        if offset:
-                            write_offset(config.archive.offset_file, offset)
+                        save_progress(writer, config, offset)
                         return archived
 
             except (httpx.HTTPError, OSError) as exc:
                 log.warning("stream.disconnected", error=str(exc), backoff=backoff)
                 time.sleep(backoff)
-                backoff = min(backoff * 2, config.stream.reconnect_max_seconds)
+                backoff = backoff * 2
+                if backoff > config.stream.reconnect_max_seconds:
+                    backoff = config.stream.reconnect_max_seconds
             else:
                 log.info("stream.ended", backoff=backoff)
                 time.sleep(backoff)

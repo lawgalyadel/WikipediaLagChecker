@@ -1,9 +1,7 @@
 """Minimal server-sent-events parser.
 
-Deliberately written as a pure function over an iterable of decoded lines
-rather than something that owns a socket. That means the parser is fully
-testable without a network, which is the only reason it has tests on day
-one instead of day never.
+Written as a function over decoded lines instead of something that owns a
+socket, so it can be tested without a network connection.
 
 Only the fields this project needs are handled: `id`, `event`, `data`.
 Comment lines (starting ':') are ignored, which is how the Wikimedia
@@ -26,33 +24,46 @@ class SSEMessage:
 def parse_sse(lines: Iterable[str]) -> Iterator[SSEMessage]:
     """Yield one SSEMessage per complete event block.
 
-    A block ends at a blank line. Incomplete trailing blocks are dropped,
-    which is correct: a half-received event on a dropped connection is not
-    an event, and we will resume from the last complete id.
+    A block ends at a blank line. An incomplete block at the end is dropped,
+    since the archiver resumes from the last complete id anyway.
     """
     event_type = "message"
     data_parts: list[str] = []
     event_id: str | None = None
 
     for raw_line in lines:
-        line = raw_line.rstrip("\n").rstrip("\r")
+        line = raw_line.rstrip("\n")
+        line = line.rstrip("\r")
 
+        # Lines starting with a colon are comments (keep-alives).
         if line.startswith(":"):
             continue
 
+        # A blank line means the current block is finished.
         if line == "":
-            if data_parts:
-                yield SSEMessage(
+            if len(data_parts) > 0:
+                message = SSEMessage(
                     event=event_type,
                     data="\n".join(data_parts),
                     id=event_id,
                 )
+                yield message
             event_type = "message"
             data_parts = []
             continue
 
-        field, _, value = line.partition(":")
-        value = value[1:] if value.startswith(" ") else value
+        # Every other line looks like "field: value".
+        colon_position = line.find(":")
+        if colon_position == -1:
+            field = line
+            value = ""
+        else:
+            field = line[:colon_position]
+            value = line[colon_position + 1 :]
+
+        # The spec allows one optional space after the colon.
+        if value.startswith(" "):
+            value = value[1:]
 
         if field == "event":
             event_type = value

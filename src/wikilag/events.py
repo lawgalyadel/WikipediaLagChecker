@@ -41,7 +41,10 @@ class EventCounts:
     filtered: dict[str, int] = field(default_factory=dict)
 
     def drop(self, reason: str) -> None:
-        self.filtered[reason] = self.filtered.get(reason, 0) + 1
+        if reason in self.filtered:
+            self.filtered[reason] += 1
+        else:
+            self.filtered[reason] = 1
 
 
 class RecentIds:
@@ -59,28 +62,44 @@ class RecentIds:
     def seen_before(self, event_id: str) -> bool:
         if event_id in self._ids:
             return True
+
         self._ids[event_id] = None
+
+        # Forget the oldest id once we're over capacity.
         if len(self._ids) > self._capacity:
             self._ids.popitem(last=False)
+
         return False
 
 
 def to_edit(event: dict) -> Edit | None:
     """Typed edit from a raw payload, or None if required fields are missing."""
     try:
-        revision = event.get("revision") or {}
-        return Edit(
-            event_id=event["meta"]["id"],
-            wiki=event["wiki"],
-            title=event["title"],
-            timestamp=int(event["timestamp"]),
-            bot=bool(event.get("bot", False)),
-            change_type=event["type"],
-            user=event.get("user", ""),
-            revision=revision.get("new"),
-        )
+        revision_info = event.get("revision")
+        if not revision_info:
+            revision_info = {}
+
+        event_id = event["meta"]["id"]
+        wiki = event["wiki"]
+        title = event["title"]
+        timestamp = int(event["timestamp"])
+        bot = bool(event.get("bot", False))
+        change_type = event["type"]
+        user = event.get("user", "")
+        revision = revision_info.get("new")
     except (KeyError, TypeError, ValueError):
         return None
+
+    return Edit(
+        event_id=event_id,
+        wiki=wiki,
+        title=title,
+        timestamp=timestamp,
+        bot=bot,
+        change_type=change_type,
+        user=user,
+        revision=revision,
+    )
 
 
 def edits(
@@ -91,8 +110,12 @@ def edits(
     Bots are kept: they are excluded at analysis time so their share can be
     reported. `counts` is filled in as a side effect when given.
     """
-    counts = counts if counts is not None else EventCounts()
-    return deduplicated(filtered(events, config, counts), config, counts)
+    if counts is None:
+        counts = EventCounts()
+
+    filtered_edits = filtered(events, config, counts)
+    unique_edits = deduplicated(filtered_edits, config, counts)
+    return unique_edits
 
 
 def filtered(
@@ -105,19 +128,24 @@ def filtered(
 
     for event in events:
         counts.seen += 1
+
         edit = to_edit(event)
         if edit is None:
             counts.malformed += 1
             continue
+
         if edit.wiki not in wikis:
             counts.drop("wiki")
             continue
+
         if event.get("namespace") not in namespaces:
             counts.drop("namespace")
             continue
+
         if edit.change_type not in change_types:
             counts.drop(f"type:{edit.change_type}")
             continue
+
         yield edit
 
 
@@ -127,9 +155,11 @@ def deduplicated(
     """The stateful half of `edits`. Duplicates straddle partition
     boundaries, so this runs once, in order, after any parallel stage."""
     recent = RecentIds(config.events.dedupe_window_events)
+
     for edit in candidates:
         if recent.seen_before(edit.event_id):
             counts.duplicate += 1
             continue
+
         counts.kept += 1
         yield edit
